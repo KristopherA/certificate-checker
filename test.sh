@@ -78,8 +78,8 @@ for bad in "rdp" "rdg" "winrm" "winrm h.example.test --http-port 5985" "rdp a b"
 done
 echo "  ok  usage errors exit 2 (including --http-port without --check-http)"
 echo "CLI dsm / pve / pbs usage and fingerprint validation (no network)…"
-for bad in "dsm" "pve" "pbs" "pve a b" "dsm h.example.test --fingerprint 00" "pbs h.example.test --fingerprint not-a-fingerprint" "pbs h.example.test --fingerprint AA:BB"; do
+for bad in "dsm" "pve" "pbs" "pve a b" "dsm h.example.test --fingerprint 00" "dsm h.example.test --fingerprint AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB" "pve h.example.test --fingerprint AA:BB" "pbs h.example.test --fingerprint not-a-fingerprint" "pbs h.example.test --fingerprint AA:BB"; do
   set +e; "$CLI" $bad >/dev/null 2>&1; rc=$?; set -e
   [ "$rc" = 2 ] || { echo "  '$bad' exit $rc (want 2)"; exit 1; }
 done
-echo "  ok  usage errors exit 2 (including --fingerprint on dsm and malformed pins)"
+echo "  ok  usage errors exit 2 (including --fingerprint on dsm and malformed pbs/pve pins)"

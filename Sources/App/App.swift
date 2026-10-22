@@ -183,7 +183,7 @@ struct ContentView: View {
                 Spacer()
                 Label("On demand only", systemImage: "hand.tap").font(.caption)
                 Text("Nothing runs in the background. Private keys are read in memory only and never logged, cached, copied or uploaded. Fix commands are copy-only.").font(.caption).foregroundStyle(.secondary)
-                Text("macOS 14+ · v0.6.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
+                Text("macOS 14+ · v0.6.1\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
                 Text("Config: \(AppConfig.source == "built-in defaults" ? "built-in defaults" : (AppConfig.source as NSString).abbreviatingWithTildeInPath)\(AppConfig.loadError == nil ? "" : " (error, defaults used)")").font(.caption2).foregroundStyle(.secondary).lineLimit(2).help(AppConfig.loadError ?? AppConfig.source).textSelection(.enabled)
             }.padding(24).frame(width: 230).frame(maxHeight: .infinity).background(accent.opacity(0.055))
             Divider()
@@ -420,11 +420,11 @@ struct TargetEditor: View {
             TextField("Name", text: $target.name)
             TextField("Host or IP", text: $target.host)
             Picker("Service", selection: $target.service) { ForEach(Service.allCases) { Text($0.rawValue).tag($0) } }
-                .onChange(of: target.service) { _, s in target.port = s.defaultPort; portText = String(s.defaultPort); if s != .proxmoxBackup { target.fingerprintPin = nil } }
+                .onChange(of: target.service) { _, s in target.port = s.defaultPort; portText = String(s.defaultPort); if !s.acceptsFingerprintPin { target.fingerprintPin = nil } }
             TextField("Port", text: $portText).onChange(of: portText) { _, v in if let p = Int(v) { target.port = p } }
             TextField("SNI override (optional)", text: $target.sni)
             TextField("Expected certificate name (optional)", text: $target.expectedName)
-            if target.service == .proxmoxBackup { TextField("PBS fingerprint pin, SHA-256 AA:BB:… (optional)", text: Binding(get: { target.fingerprintPin ?? "" }, set: { target.fingerprintPin = $0.isEmpty ? nil : $0 })) }
+            if target.service.acceptsFingerprintPin { TextField("Fingerprint pin, SHA-256 AA:BB:… (optional)", text: Binding(get: { target.fingerprintPin ?? "" }, set: { target.fingerprintPin = $0.isEmpty ? nil : $0 })) }
             Picker("Platform (for fix guidance)", selection: $target.platform) { ForEach(Platform.allCases) { Text($0.rawValue).tag($0) } }
             TextField("Notes", text: $target.notes, axis: .vertical).lineLimit(2...4)
             Text("Targets are saved to ~/Library/Application Support/CertificateChecker/targets.json (0600). Results are not saved.").font(.caption).foregroundStyle(.secondary)
@@ -606,9 +606,9 @@ struct ApplianceView: View {
                             Button("Add to Targets") { m.addApplianceTarget() }.disabled(!m.appl.canRun)
                             Button(m.applRunning ? "Checking…" : "Check once") { m.probeAppliance() }.buttonStyle(.borderedProminent).tint(accent).disabled(m.applRunning || !m.appl.canRun)
                         }
-                        if m.appl.service == .proxmoxBackup {
+                        if m.appl.service.acceptsFingerprintPin {
                             TextField("Fingerprint pin (SHA-256, AA:BB:…; optional)", text: $m.appl.fingerprint).font(.system(.body, design: .monospaced))
-                            Text("Copy it from the PBS dashboard (Show Fingerprint) or proxmox-backup-manager cert info. A fingerprint is public; never paste a private key here.").font(.caption).foregroundStyle(.secondary)
+                            Text("Copy it from the PBS dashboard (Show Fingerprint) / proxmox-backup-manager cert info, or pvenode cert info on a PVE node. A fingerprint is public; never paste a private key here.").font(.caption).foregroundStyle(.secondary)
                         }
                         Text("Guidance is copy-only (DSM Control Panel steps, pvenode, proxmox-backup-manager, pvesm). Nothing is executed.").font(.caption).foregroundStyle(.secondary)
                     }.padding(6)

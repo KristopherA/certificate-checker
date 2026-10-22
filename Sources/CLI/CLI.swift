@@ -17,7 +17,7 @@ import Foundation
       certificate-checker winrm HOST [--port 5986] [--sni NAME] [--expect NAME] [--check-http [--http-port 5985]]
                           (WinRM HTTPS certificate; --check-http also sends one unauthenticated POST /wsman to the PLAINTEXT HTTP listener)
       certificate-checker dsm HOST [--port 5001] [--sni NAME] [--expect NAME]   (Synology DSM HTTPS certificate)
-      certificate-checker pve HOST [--port 8006] [--sni NAME] [--expect NAME]   (Proxmox VE web/API certificate)
+      certificate-checker pve HOST [--port 8006] [--sni NAME] [--expect NAME] [--fingerprint AA:BB:…]   (Proxmox VE web/API certificate)
       certificate-checker pbs HOST [--port 8007] [--sni NAME] [--expect NAME] [--fingerprint AA:BB:…]
                           (Proxmox Backup Server certificate; --fingerprint compares the served SHA-256 fingerprint with your pin)
     SERVICE: https tls ldaps ldap-starttls smtp-starttls smtps imap-starttls imaps pop3-starttls pop3s mysql rdp rdg winrm dsm pve pbs
@@ -144,7 +144,7 @@ import Foundation
         guard args.count == 2, let svc = services[args[0]] else { print(usage); exit(2) }
         var t = Target(name: args[1], host: args[1], port: port, service: svc, sni: sni, expectedName: expect)
         if let pin {
-            guard svc == .proxmoxBackup else { fputs("--fingerprint applies only to pbs.\n", stderr); print(usage); exit(2) }
+            guard svc.acceptsFingerprintPin else { fputs("--fingerprint applies only to pbs and pve.\n", stderr); print(usage); exit(2) }
             guard FingerprintPin.normalize(pin) != nil else { fputs("--fingerprint must be a SHA-256 colon-hex value (AA:BB:…, 32 bytes).\n", stderr); exit(2) }
             t.fingerprintPin = pin
         }

@@ -1,6 +1,6 @@
 # Certificate Checker
 
-A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.6.0 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server checks), macOS 14+, universal (Apple Silicon and Intel).
+A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.6.1 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server checks), macOS 14+, universal (Apple Silicon and Intel).
 
 ## Run
 
@@ -265,6 +265,15 @@ The **Appliances** pane and the `dsm`, `pve` and `pbs` CLI commands check the HT
 - Fix guidance is copy-only text and is never executed: DSM Control Panel › Security › Certificate steps, `pvenode cert set` / `pvenode acme …` for PVE, and `proxmox-backup-manager cert info|update`, `pvesm set <storage> --fingerprint` and `PBS_FINGERPRINT` for PBS.
 
 **Validation:** covered by offline SYNTHETIC-* fixtures (`Tests/make-appliance-fixtures.sh`) and a loopback fake TLS server. **Live probing against real DSM, PVE and PBS hosts is untested.** Default-certificate detection is based on documented subject/issuer patterns and may miss customised factory certificates.
+
+## 0.6.1: appliance review follow-ups
+
+- **Proxmox VE fingerprint pin (optional):** `certificate-checker pve pve1.example.test --fingerprint AA:BB:…` (and the fingerprint field for PVE in the app and Targets) compares the served SHA-256 with your pin, exactly as for PBS. Get it with `pvenode cert info`. `--fingerprint` is accepted for `pbs` and `pve`; on `dsm` it still exits 2.
+- **Identity warnings:** without a pin, the DSM factory-certificate and PVE cluster-CA warnings now state that the server's identity is unverified.
+- **No network during appliance trust evaluation:** for `dsm`, `pve` and `pbs`, trust evaluation does not fetch missing intermediates (AIA) and does not check revocation (OCSP/CRL) online. Only the certificates the appliance presents and the local trust store are used, so a server that omits an intermediate is reported as untrusted rather than silently repaired. Other probe types are unchanged.
+- **Pin input:** only ASCII hex digits are accepted. Fullwidth or other non-ASCII digits are reported as a malformed pin, not a mismatch.
+
+Live probing against real appliances remains untested; validation uses SYNTHETIC fixtures and a loopback server.
 
 ## License
 

@@ -94,13 +94,61 @@ final class ApplianceTests: XCTestCase {
         XCTAssertEqual(f.port, "5001"); XCTAssertFalse(f.canRun)
         f.select(.proxmoxBackup); XCTAssertEqual(f.port, "8007"); f.fingerprint = " " + String(repeating: "AB:", count: 31) + "AB "; f.host = " pbs.example.test "
         XCTAssertTrue(f.canRun); XCTAssertEqual(f.target.platform, .proxmoxBackup); XCTAssertNotNil(f.target.fingerprintPin); XCTAssertNoThrow(try f.target.validate())
-        f.select(.proxmoxVE); XCTAssertEqual(f.port, "8006"); XCTAssertEqual(f.fingerprint, ""); XCTAssertNil(f.target.fingerprintPin)
-        var t = Target(name: "x", host: "h.example.test", service: .proxmoxVE); t.fingerprintPin = String(repeating: "AB:", count: 31) + "AB"
-        XCTAssertThrowsError(try t.validate(), "pin only for PBS")
+        f.select(.proxmoxVE); XCTAssertEqual(f.port, "8006"); XCTAssertNotNil(f.target.fingerprintPin, "PVE keeps the pin (0.6.1)")
+        f.select(.synologyDSM); XCTAssertEqual(f.port, "5001"); XCTAssertEqual(f.fingerprint, ""); XCTAssertNil(f.target.fingerprintPin)
+        var t = Target(name: "x", host: "h.example.test", service: .synologyDSM); t.fingerprintPin = String(repeating: "AB:", count: 31) + "AB"
+        XCTAssertThrowsError(try t.validate(), "no pin for DSM")
         t.service = .proxmoxBackup; t.fingerprintPin = "AB:CD"; XCTAssertThrowsError(try t.validate())
         // targets.json written before 0.6.0 (no fingerprintPin key) still decodes.
         let old = #"[{"id":"7D3F0E4A-1111-4222-8333-944455556666","name":"n","host":"h.example.test","port":443,"service":"HTTPS","sni":"","expectedName":"","platform":"Generic / unknown","notes":""}]"#
         let d = try JSONDecoder().decode([Target].self, from: Data(old.utf8)); XCTAssertNil(d[0].fingerprintPin)
+    }
+    func testFingerprintRejectsNonASCIIHex() throws {
+        let ascii = (0..<32).map { _ in "10" }.joined(separator: ":")
+        XCTAssertNotNil(FingerprintPin.normalize(ascii))
+        let fullwidth = ascii.replacingOccurrences(of: "1", with: "\u{FF11}").replacingOccurrences(of: "0", with: "\u{FF10}")
+        XCTAssertNil(FingerprintPin.normalize(fullwidth), "fullwidth digits are malformed, not hex")
+        XCTAssertNil(FingerprintPin.normalize(ascii.replacingOccurrences(of: "10", with: "\u{0661}\u{0660}")), "Arabic-Indic digits rejected")
+        // Reported as malformed, not as a mismatch.
+        let c = try chain("SYNTHETIC-pbs-selfsigned.pem")
+        var t = Target(name: "", host: "pbs.example.test", service: .proxmoxBackup); t.fingerprintPin = fullwidth
+        let f = Appliance.adjust(untrusted, chain: c, target: t).first { $0.id == "pbs-pin" }!
+        XCTAssertEqual(f.severity, .fail); XCTAssertTrue(f.title.contains("not a SHA-256"), f.title)
+        XCTAssertThrowsError(try t.validate())
+    }
+    func testLeafSHA256FormatIsUppercaseColonHex() throws {
+        // Pin comparison is a plain string compare against leaf.sha256, so its format is locked here.
+        for n in ["SYNTHETIC-pbs-selfsigned.pem", "SYNTHETIC-pve-default.pem", "SYNTHETIC-dsm-default.pem"] {
+            let fp = try chain(n)[0].sha256
+            XCTAssertEqual(fp.count, 95, n)
+            XCTAssertNotNil(fp.range(of: "^[0-9A-F]{2}(:[0-9A-F]{2}){31}$", options: .regularExpression), fp)
+            XCTAssertEqual(FingerprintPin.normalize(fp), fp, "already normalised")
+        }
+    }
+    func testPVEOptionalPin() throws {
+        let c = try chain("SYNTHETIC-pve-default.pem")
+        var t = Target(name: "", host: "pve1.example.test", service: .proxmoxVE)
+        var f = Appliance.adjust(untrusted, chain: c, target: t)
+        XCTAssertNil(sev(f, "pve-pin")); XCTAssertTrue(f.first { $0.id == "pve-default" }!.detail.contains("Identity is unverified"))
+        t.fingerprintPin = c[0].sha256.lowercased(); XCTAssertNoThrow(try t.validate())
+        f = Appliance.adjust(untrusted, chain: c, target: t)
+        XCTAssertEqual(sev(f, "pve-pin"), .pass); XCTAssertEqual(sev(f, "trust"), .info)
+        XCTAssertFalse(f.first { $0.id == "pve-default" }!.detail.contains("Identity is unverified"))
+        t.fingerprintPin = String(repeating: "00:", count: 31) + "00"
+        f = Appliance.adjust(untrusted, chain: c, target: t)
+        XCTAssertEqual(sev(f, "pve-pin"), .fail); XCTAssertEqual(sev(f, "trust"), .fail, "mismatch: no downgrade")
+        XCTAssertFalse(ApplianceAdvisor.guidance(for: f.first { $0.id == "pve-pin" }!, target: t).isEmpty)
+        t.fingerprintPin = "AB:CD"; XCTAssertEqual(sev(Appliance.adjust(untrusted, chain: c, target: t), "pve-pin"), .fail)
+        // DSM still does not accept a pin, and its default-cert warning says identity is unverified.
+        var d = Target(name: "", host: "nas.example.test", service: .synologyDSM); d.fingerprintPin = c[0].sha256
+        XCTAssertThrowsError(try d.validate())
+        XCTAssertTrue(Appliance.adjust(untrusted, chain: try chain("SYNTHETIC-dsm-default.pem"), target: d).first { $0.id == "dsm-default" }!.detail.contains("Identity is unverified"))
+        var form = ApplianceForm(); form.select(.proxmoxVE); form.host = "pve1.example.test"; form.fingerprint = c[0].sha256
+        XCTAssertEqual(form.target.fingerprintPin, c[0].sha256); form.select(.synologyDSM); XCTAssertEqual(form.fingerprint, "")
+    }
+    func testApplianceTrustNeverFetchesFromNetwork() {
+        for s in [Service.synologyDSM, .proxmoxVE, .proxmoxBackup] { XCTAssertFalse(Probe.allowsTrustNetworkFetch(s), s.rawValue) }
+        XCTAssertTrue(Probe.allowsTrustNetworkFetch(.https))
     }
     func testLoopbackPBSPin() async throws {
         let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/python3")

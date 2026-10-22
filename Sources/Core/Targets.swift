@@ -31,6 +31,8 @@ public enum Service: String, Codable, CaseIterable, Identifiable {
     /// RDP, RD Gateway and WinRM: Windows remote administration services with their own certificate rules.
     public var isRemoteAdmin: Bool { [.rdp, .rdGateway, .winrmHTTPS].contains(self) }
     /// Synology DSM, Proxmox VE and Proxmox Backup Server web/API TLS endpoints.
+    /// Services whose certificate can be checked against a SHA-256 fingerprint pin.
+    public var acceptsFingerprintPin: Bool { self == .proxmoxBackup || self == .proxmoxVE }
     public var isAppliance: Bool { [.synologyDSM, .proxmoxVE, .proxmoxBackup].contains(self) }
     /// Guidance platform to use when the target is left on Generic.
     public var windowsPlatform: Platform? { switch self { case .rdp: return .windowsRDP; case .rdGateway: return .windowsRDGateway; case .winrmHTTPS: return .windowsWinRM; default: return nil } }
@@ -84,7 +86,7 @@ public struct Target: Codable, Identifiable, Equatable, Hashable {
         guard (1...65535).contains(port) else { throw CheckError.message("Port must be 1–65535.") }
         for s in [sni, expectedName] where !s.isEmpty { guard Target.validHost(s) else { throw CheckError.message("SNI and expected name must be hostnames.") } }
         if let p = fingerprintPin, !p.trimmingCharacters(in: .whitespaces).isEmpty {
-            guard service == .proxmoxBackup else { throw CheckError.message("A fingerprint pin applies only to Proxmox Backup Server targets.") }
+            guard service.acceptsFingerprintPin else { throw CheckError.message("A fingerprint pin applies only to Proxmox Backup Server and Proxmox VE targets.") }
             guard FingerprintPin.normalize(p) != nil else { throw CheckError.message("Fingerprint pin must be a SHA-256 value in colon-hex form (AA:BB:…, 32 bytes).") }
         }
         guard name.count <= 120, notes.count <= 2000 else { throw CheckError.message("Name or notes are too long.") }

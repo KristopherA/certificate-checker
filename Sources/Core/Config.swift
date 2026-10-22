@@ -99,12 +99,7 @@ public enum KB {
         u = standardized.resolvingSymlinksInPath()
         // A broken symlink cannot be resolved, so resolvingSymlinksInPath() returns the link's own path and the
         // checks below use the link's own name. That is harmless: the target does not exist, nothing can be opened,
-        // and a refused extension on the link name is still refused. Made explicit here rather than relying on it.
-        if u.path == standardized.path,
-           (try? FileManager.default.destinationOfSymbolicLink(atPath: standardized.path)) != nil,
-           !FileManager.default.fileExists(atPath: standardized.path) {
-            u = standardized  // broken symlink: keep the link's own name
-        }
+        // and a refused extension on the link name (e.g. x.app) is still refused. Covered by the broken-symlink tests.
         if refusedExtensions.contains(u.pathExtension.lowercased()) { return (nil, "refused: .\(u.pathExtension) would run or install something") }
         var isDir: ObjCBool = false
         if FileManager.default.fileExists(atPath: u.path, isDirectory: &isDir) {

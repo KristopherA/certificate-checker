@@ -275,6 +275,15 @@ final class CertificateCheckerTests: XCTestCase {
         s.kbLinks = ["pki": "guide.md", "runbook": "notes.txt", "checklist": "readme.md", "zimbra": "alias.md", "proxmox": "link.txt", "synology": "Home.webloc"]
         for k in [KB.pki, KB.runbook, KB.checklist, KB.proxmox, KB.synology] { XCTAssertNil(KB.url(k, config: s), k); XCTAssertNotNil(KB.resolve(k, config: s).problem, k) }
         XCTAssertEqual(KB.url(KB.zimbra, config: s)?.lastPathComponent, "doc.md", "a symlink to a document resolves to the document")
+        // Broken symlinks: the link keeps its own name; a refused extension on the link name is still refused.
+        let brokenDir = dir.appendingPathComponent("broken"); try fm.createDirectory(at: brokenDir, withIntermediateDirectories: true)
+        try fm.createSymbolicLink(at: brokenDir.appendingPathComponent("doc.md"), withDestinationURL: brokenDir.appendingPathComponent("missing-target.txt"))
+        try fm.createSymbolicLink(at: brokenDir.appendingPathComponent("x.app"), withDestinationURL: brokenDir.appendingPathComponent("missing-target.md"))
+        var b = AppConfig(); b.kbRoot = brokenDir.path; b.kbLinks = ["pki": "doc.md", "runbook": "x.app"]
+        XCTAssertEqual(KB.resolve(KB.pki, config: b).url?.lastPathComponent, "doc.md", "a broken doc.md keeps its own name")
+        XCTAssertNil(KB.resolve(KB.pki, config: b).problem)
+        XCTAssertNil(KB.url(KB.runbook, config: b), "a broken x.app is refused")
+        XCTAssertTrue(KB.resolve(KB.runbook, config: b).problem?.contains(".app") == true)
     }
     func testConfigLoadFromFileAndErrors() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("cfg-\(UUID().uuidString)")

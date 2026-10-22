@@ -145,6 +145,8 @@ public enum Probe {
     public static var timeout: TimeInterval = 15
 
     /// Runs on a dedicated thread with its own run loop. Never follows redirects, sends no credentials, reads no application data.
+    /// Whether SecTrust may fetch intermediates (AIA) or revocation data. Off for appliance checks (one handshake, no other traffic).
+    public static func allowsTrustNetworkFetch(_ s: Service) -> Bool { !s.isAppliance }
     public static func run(_ target: Target, timeout: TimeInterval = Probe.timeout) async -> ProbeResult {
         await withCheckedContinuation { c in
             let t = Thread { c.resume(returning: runSync(target, timeout: timeout)) }
@@ -176,7 +178,8 @@ public enum Probe {
             r.duration = Date().timeIntervalSince(start)
             var f = Analysis.evaluate(certificates: r.chain, hostname: target.verifyName, purpose: .tlsServer)
             // Presented order matters for servers: re-flag if the server sent certificates out of order.
-            f.append(Trust.finding(Trust.evaluate(r.chain, hostname: target.verifyName, purpose: .tlsServer, allowNetwork: true), context: "as presented by server"))
+            f.append(Trust.finding(Trust.evaluate(r.chain, hostname: target.verifyName, purpose: .tlsServer, allowNetwork: allowsTrustNetworkFetch(target.service)), context: "as presented by server"))
+            // Appliance checks never let trust evaluation fetch intermediates (AIA) or check revocation online: one handshake, no other traffic.
             if r.tlsVersion == nil { f.append(Finding("tlsver", .info, .general, "TLS version not determined", "macOS did not report the negotiated protocol for this connection.")) }
             if let v = r.tlsVersion, v == "TLS 1.0" || v == "TLS 1.1" { f.append(Finding("tlsver", .warning, .general, "Server negotiated \(v)", "Disable TLS 1.0/1.1 on the service.")) }
             f = Remote.adjust(f, chain: r.chain, target: target)
