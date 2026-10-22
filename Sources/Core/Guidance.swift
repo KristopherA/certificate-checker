@@ -12,7 +12,7 @@ public struct Guidance: Identifiable, Equatable {
 public enum Advisor {
     public static func guidance(for topic: Topic, platform: Platform, target: Target? = nil) -> [Guidance] {
         // Remote-admin targets left on Generic get their Windows guidance.
-        let platform = platform == .generic ? (target?.service.windowsPlatform ?? platform) : platform
+        let platform = platform == .generic ? (target?.service.defaultPlatform ?? platform) : platform
         let host = target?.verifyName ?? "HOST"
         let qh = Shell.quote(host)
         var out: [Guidance] = []
@@ -47,7 +47,7 @@ public enum Advisor {
                 "For HTTPS targets, use Connection Workbench to compare DNS, proxy and route evidence.",
                 "Check the firewall rule on pfSense (Firewall › Rules) for the source network."
             ], commands: ["nc -vz \(Shell.quote(target?.host ?? "HOST")) \(target?.port ?? 443)", target.map(Probe.opensslCommand) ?? "\(Shell.openssl) s_client -connect HOST:443 </dev/null"], docs: [KB.pfSense]))
-        case .csr, .general, .wireguard, .ipsec, .radius, .remote: break
+        case .csr, .general, .wireguard, .ipsec, .radius, .remote, .appliance: break
         }
         return out
     }
@@ -91,6 +91,8 @@ public enum Advisor {
             return Guidance(title: "pfSense: replace via Cert Manager", steps: [why, "System › Cert Manager › Certificates: renew (internal CA) or import the new certificate and key.", "Assign it where used: System › Advanced › Admin Access (GUI), VPN › IPsec › Phase 1 (IKEv2 'My Certificate'), or the service using it.", "For IPsec, also confirm clients trust the issuing CA and that the SAN matches the IKE identifier."], commands: ["/etc/rc.restart_webgui", "swanctl --list-certs"], docs: [KB.pfSense, KB.pki])
         case .windowsAD:
             return Guidance(title: "Active Directory: replace the LDAPS certificate", steps: [why, "Request a new certificate from the AD CS 'Domain Controller Authentication' or Kerberos template on the DC (certlm.msc › Personal › Request New Certificate).", "Remove the expired certificate after the new one is in place.", "Force LDAPS to load the new certificate without reboot using the LDIF below, then re-check LDAPS 636 and StartTLS 389."], commands: ["certutil -store My", "certutil -verify -urlfetch new-dc.cer", "Set-Content renew.ldf \"dn:`nchangetype: modify`nadd: renewServerCertificate`nrenewServerCertificate: 1`n-\"", "ldifde -i -f renew.ldf"], docs: [KB.ldapsReplace, KB.ldapRef, KB.pki])
+        case .synology where service == .synologyDSM, .proxmoxVE where service == .proxmoxVE, .proxmoxBackup where service == .proxmoxBackup:
+            return ApplianceAdvisor.binding(service, host: host, why: why) ?? Guidance(title: "Reissue and redeploy", steps: [why], commands: [], docs: [KB.pki])
         case .windowsIIS where service?.isRemoteAdmin == true:
             return RemoteAdvisor.binding(service, host: host, why: why) ?? Guidance(title: "Reissue and redeploy", steps: [why, "Import the new certificate into Local Computer › Personal and bind it to the service."], commands: [], docs: [KB.pki])
         case .windowsIIS:

@@ -1,6 +1,6 @@
 # Certificate Checker
 
-A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.5.2 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM checks), macOS 14+, universal (Apple Silicon and Intel).
+A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.6.0 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server checks), macOS 14+, universal (Apple Silicon and Intel).
 
 ## Run
 
@@ -253,6 +253,18 @@ certificate-checker probe rdp|rdg|winrm HOST          # same, as probe presets
 - **WinRM HTTPS (5986):** TLS only. Warns when the certificate CN differs from the host name. The plaintext HTTP listener (5985) is checked only with `--check-http` / the app toggle: one unauthenticated `POST /wsman`, reporting the offered authentication schemes (Basic over HTTP = fail, otherwise warning; a 401 without WWW-Authenticate or a `Server: Microsoft-HTTPAPI` header is reported as "likely WinRM").
 - **Certificate checks:** EKU (RDP accepts Server Authentication or Remote Desktop Authentication 1.3.6.1.4.1.311.54.1.2; an RDA-only chain is trust-evaluated with the X.509 policy and hostname is checked separately), name/SAN match, self-signed Windows default RDP certificate (warning; its trust failure is downgraded to a warning only when it is the sole certificate, inside its validity dates and correctly self-signed), key and digest strength, expiry, presented SHA-1 thumbprint for comparison.
 - **Guidance (copy-only PowerShell, `THUMBPRINT` placeholder, hosts PowerShell-quoted):** `Win32_TSGeneralSetting` `SSLCertificateSHA1Hash` via `Set-CimInstance` (or legacy `wmic`), NLA/security layer, RD Gateway Manager or `Set-Item RDS:\GatewayServer\SSLCertificate\Thumbprint`, `Set-RDCertificate`, `New-Item WSMan:\localhost\Listener … -CertificateThumbPrint`, WinRM Basic/AllowUnencrypted hardening, and firewall scoping notes. KB links via config keys `rdp`, `rdGateway`, `winrm`.
+
+## Appliances: Synology DSM, Proxmox VE, Proxmox Backup Server (0.6.0)
+
+The **Appliances** pane and the `dsm`, `pve` and `pbs` CLI commands check the HTTPS certificate on Synology DSM (default port 5001), Proxmox VE (8006) and Proxmox Backup Server (8007). Each probe makes one TLS handshake and stops: no HTTP request, no login, no retry.
+
+- Reports expiry, chain order and trust, SAN coverage of the name you connect with, self-signed certificates, key and digest strength, and the leaf SHA-256 fingerprint.
+- Detects factory/default certificates: the DSM `synology` certificate under "Synology Inc. CA", PVE node certificates from the "PVE Cluster Manager CA", and the self-signed PBS install certificate.
+- PBS fingerprint pin: `certificate-checker pbs pbs.example.test --fingerprint AA:BB:…` (or the PBS fingerprint field in the app and in Targets) compares the served certificate's SHA-256 with your pin. A match lowers the self-signed trust failure to info; a mismatch fails. Colon-hex or plain hex, 32 bytes; `--fingerprint` on `dsm`/`pve` or a malformed pin exits 2.
+- A trust failure is lowered (warning, or info for a matching PBS pin) only when the certificate is within its validity dates and its own chain verifies. Expired or broken chains stay failures.
+- Fix guidance is copy-only text and is never executed: DSM Control Panel › Security › Certificate steps, `pvenode cert set` / `pvenode acme …` for PVE, and `proxmox-backup-manager cert info|update`, `pvesm set <storage> --fingerprint` and `PBS_FINGERPRINT` for PBS.
+
+**Validation:** covered by offline SYNTHETIC-* fixtures (`Tests/make-appliance-fixtures.sh`) and a loopback fake TLS server. **Live probing against real DSM, PVE and PBS hosts is untested.** Default-certificate detection is based on documented subject/issuer patterns and may miss customised factory certificates.
 
 ## License
 

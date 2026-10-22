@@ -8,7 +8,7 @@ public enum Severity: Int, Codable, Comparable, CaseIterable {
 }
 
 public enum Topic: String, Codable, CaseIterable {
-    case expiry, hostname, chainOrder, chainIncomplete, trust, keyMismatch, weakKey, weakSignature, eku, caLeaf, noSAN, longValidity, startTLS, connection, csr, general, wireguard, ipsec, radius, remote
+    case expiry, hostname, chainOrder, chainIncomplete, trust, keyMismatch, weakKey, weakSignature, eku, caLeaf, noSAN, longValidity, startTLS, connection, csr, general, wireguard, ipsec, radius, remote, appliance
 }
 
 public struct Finding: Identifiable, Codable, Equatable {

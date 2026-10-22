@@ -86,6 +86,18 @@ struct TargetStatus { var result: ProbeResult?; var running = false }
             remResult = r; remRunning = false
         }
     }
+    // Appliances (Synology DSM, Proxmox VE, Proxmox Backup Server)
+    @Published var appl = ApplianceForm()
+    @Published var applRunning = false
+    @Published var applResult: ProbeResult?
+    @Published var applTarget: Target?
+    func probeAppliance() {
+        let t = appl.target
+        do { try t.validate() } catch { message = error.localizedDescription; return }
+        applRunning = true; applTarget = t; applResult = nil
+        Task { let r = await Probe.run(t); applResult = r; applRunning = false }
+    }
+    func addApplianceTarget() { var t = appl.target; t.name = "\(appl.service.rawValue) \(t.host)"; if commit(t) { section = 1 } }
     func addRemoteTarget() { var t = rem.target; t.name = "\(rem.service.rawValue) \(t.host)"; if commit(t) { section = 1 } }
     // Targets
     @Published var targets: [Target] = []
@@ -167,14 +179,15 @@ struct ContentView: View {
                 rail(3, "lock.shield", "IKEv2 IPsec", "pfSense Cert Manager, config.xml")
                 rail(4, "wifi.router", "RADIUS", "EAP server certificate, eapol_test")
                 rail(5, "display", "Remote access", "RDP, RD Gateway, WinRM")
+                rail(6, "externaldrive.connected.to.line.below", "Appliances", "Synology DSM, Proxmox VE, PBS")
                 Spacer()
                 Label("On demand only", systemImage: "hand.tap").font(.caption)
                 Text("Nothing runs in the background. Private keys are read in memory only and never logged, cached, copied or uploaded. Fix commands are copy-only.").font(.caption).foregroundStyle(.secondary)
-                Text("macOS 14+ · v0.5.2\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
+                Text("macOS 14+ · v0.6.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
                 Text("Config: \(AppConfig.source == "built-in defaults" ? "built-in defaults" : (AppConfig.source as NSString).abbreviatingWithTildeInPath)\(AppConfig.loadError == nil ? "" : " (error, defaults used)")").font(.caption2).foregroundStyle(.secondary).lineLimit(2).help(AppConfig.loadError ?? AppConfig.source).textSelection(.enabled)
             }.padding(24).frame(width: 230).frame(maxHeight: .infinity).background(accent.opacity(0.055))
             Divider()
-            Group { if m.section == 0 { FilesView() } else if m.section == 1 { TargetsView() } else if m.section == 2 { WireGuardView() } else if m.section == 3 { IPsecView() } else if m.section == 4 { RadiusView() } else { RemoteView() } }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group { if m.section == 0 { FilesView() } else if m.section == 1 { TargetsView() } else if m.section == 2 { WireGuardView() } else if m.section == 3 { IPsecView() } else if m.section == 4 { RadiusView() } else if m.section == 5 { RemoteView() } else { ApplianceView() } }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .alert("Certificate Checker", isPresented: Binding(get: { m.message != nil }, set: { if !$0 { m.message = nil } })) { Button("OK") {} } message: { Text(m.message ?? "") }
         .sheet(item: $m.editing) { t in TargetEditor(target: t) }
@@ -328,7 +341,7 @@ struct FindingRow: View {
     let finding: Finding; let platform: Platform; let target: Target?; var identifier: String? = nil
     @State private var open = false
     var body: some View {
-        let guidance = (finding.severity < .warning && finding.kind != "install") ? [] : finding.topic == .wireguard ? WGAdvisor.guidance(for: finding, platform: platform) : finding.topic == .ipsec ? IPsecAdvisor.guidance(for: finding, platform: platform, identifier: identifier) : finding.topic == .radius ? RadiusAdvisor.guidance(for: finding, platform: platform) : finding.topic == .remote ? RemoteAdvisor.guidance(for: finding, target: target) : Advisor.guidance(for: finding.topic, platform: platform, target: target)
+        let guidance = (finding.severity < .warning && finding.kind != "install") ? [] : finding.topic == .wireguard ? WGAdvisor.guidance(for: finding, platform: platform) : finding.topic == .ipsec ? IPsecAdvisor.guidance(for: finding, platform: platform, identifier: identifier) : finding.topic == .radius ? RadiusAdvisor.guidance(for: finding, platform: platform) : finding.topic == .remote ? RemoteAdvisor.guidance(for: finding, target: target) : finding.topic == .appliance ? ApplianceAdvisor.guidance(for: finding, target: target) : Advisor.guidance(for: finding.topic, platform: platform, target: target)
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top) {
                 SeverityIcon(severity: finding.severity)
@@ -407,10 +420,11 @@ struct TargetEditor: View {
             TextField("Name", text: $target.name)
             TextField("Host or IP", text: $target.host)
             Picker("Service", selection: $target.service) { ForEach(Service.allCases) { Text($0.rawValue).tag($0) } }
-                .onChange(of: target.service) { _, s in target.port = s.defaultPort; portText = String(s.defaultPort) }
+                .onChange(of: target.service) { _, s in target.port = s.defaultPort; portText = String(s.defaultPort); if s != .proxmoxBackup { target.fingerprintPin = nil } }
             TextField("Port", text: $portText).onChange(of: portText) { _, v in if let p = Int(v) { target.port = p } }
             TextField("SNI override (optional)", text: $target.sni)
             TextField("Expected certificate name (optional)", text: $target.expectedName)
+            if target.service == .proxmoxBackup { TextField("PBS fingerprint pin, SHA-256 AA:BB:… (optional)", text: Binding(get: { target.fingerprintPin ?? "" }, set: { target.fingerprintPin = $0.isEmpty ? nil : $0 })) }
             Picker("Platform (for fix guidance)", selection: $target.platform) { ForEach(Platform.allCases) { Text($0.rawValue).tag($0) } }
             TextField("Notes", text: $target.notes, axis: .vertical).lineLimit(2...4)
             Text("Targets are saved to ~/Library/Application Support/CertificateChecker/targets.json (0600). Results are not saved.").font(.caption).foregroundStyle(.secondary)
@@ -560,6 +574,46 @@ struct RemoteView: View {
                     }.padding(6)
                 }
                 if let r = m.remResult, let t = m.remTarget {
+                    Text("Checked \(t.endpoint) in \(String(format: "%.2f", r.duration))s\(r.tlsVersion.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary)
+                    ResultsView(findings: r.findings, chain: r.chain, platform: t.platform, target: t, extra: nil)
+                    if !r.transcript.isEmpty { DisclosureGroup("Protocol transcript") { Text(r.transcript.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) } }
+                    CommandRow(command: Probe.opensslCommand(t), caption: "Reproduce manually (copy-only)")
+                }
+            }.padding(28)
+        }
+    }
+}
+
+struct ApplianceView: View {
+    @EnvironmentObject var m: Checker
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Check appliance certificates.").font(.system(size: 30, weight: .semibold, design: .rounded))
+                Text("Synology DSM (5001), Proxmox VE (8006) and Proxmox Backup Server (8007): expiry, chain, SAN coverage, self-signed and factory/default certificates, key and digest strength, trust, and for PBS a comparison of the served SHA-256 fingerprint with your pin. One attempt; TLS handshake only, no HTTP request and no login.").foregroundStyle(.secondary)
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Picker("Product", selection: Binding(get: { m.appl.service }, set: { m.appl.select($0) })) {
+                                Text("Synology DSM (5001)").tag(Service.synologyDSM); Text("Proxmox VE (8006)").tag(Service.proxmoxVE); Text("Proxmox Backup Server (8007)").tag(Service.proxmoxBackup)
+                            }.frame(width: 300)
+                            TextField("Host or IP (e.g. \(AppConfig.current.hostPlaceholder))", text: $m.appl.host).frame(maxWidth: 280)
+                            TextField("Port", text: $m.appl.port).frame(width: 70)
+                        }
+                        HStack {
+                            TextField("Expected certificate name (optional)", text: $m.appl.expected).frame(maxWidth: 320)
+                            Spacer()
+                            Button("Add to Targets") { m.addApplianceTarget() }.disabled(!m.appl.canRun)
+                            Button(m.applRunning ? "Checking…" : "Check once") { m.probeAppliance() }.buttonStyle(.borderedProminent).tint(accent).disabled(m.applRunning || !m.appl.canRun)
+                        }
+                        if m.appl.service == .proxmoxBackup {
+                            TextField("Fingerprint pin (SHA-256, AA:BB:…; optional)", text: $m.appl.fingerprint).font(.system(.body, design: .monospaced))
+                            Text("Copy it from the PBS dashboard (Show Fingerprint) or proxmox-backup-manager cert info. A fingerprint is public; never paste a private key here.").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Text("Guidance is copy-only (DSM Control Panel steps, pvenode, proxmox-backup-manager, pvesm). Nothing is executed.").font(.caption).foregroundStyle(.secondary)
+                    }.padding(6)
+                }
+                if let r = m.applResult, let t = m.applTarget {
                     Text("Checked \(t.endpoint) in \(String(format: "%.2f", r.duration))s\(r.tlsVersion.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary)
                     ResultsView(findings: r.findings, chain: r.chain, platform: t.platform, target: t, extra: nil)
                     if !r.transcript.isEmpty { DisclosureGroup("Protocol transcript") { Text(r.transcript.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) } }

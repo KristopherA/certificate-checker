@@ -16,10 +16,14 @@ import Foundation
       certificate-checker rdg HOST [--port 443] [--sni NAME] [--expect NAME]    (RD Gateway HTTPS certificate)
       certificate-checker winrm HOST [--port 5986] [--sni NAME] [--expect NAME] [--check-http [--http-port 5985]]
                           (WinRM HTTPS certificate; --check-http also sends one unauthenticated POST /wsman to the PLAINTEXT HTTP listener)
-    SERVICE: https tls ldaps ldap-starttls smtp-starttls smtps imap-starttls imaps pop3-starttls pop3s mysql rdp rdg winrm
-    Read-only. For PFX/P12 (macOS 15+; .pfx/.p12 extension, or any file with --pfx) you are prompted for the password without echo. --password-stdin reads one line from piped stdin (prompts hidden instead if stdin is a terminal). Passwords are never stored. CERTCHECK_PFX_PASSWORD is no longer supported. Exit 0 = no failures, 1 = failures, 2 = usage.
+      certificate-checker dsm HOST [--port 5001] [--sni NAME] [--expect NAME]   (Synology DSM HTTPS certificate)
+      certificate-checker pve HOST [--port 8006] [--sni NAME] [--expect NAME]   (Proxmox VE web/API certificate)
+      certificate-checker pbs HOST [--port 8007] [--sni NAME] [--expect NAME] [--fingerprint AA:BB:…]
+                          (Proxmox Backup Server certificate; --fingerprint compares the served SHA-256 fingerprint with your pin)
+    SERVICE: https tls ldaps ldap-starttls smtp-starttls smtps imap-starttls imaps pop3-starttls pop3s mysql rdp rdg winrm dsm pve pbs
+    Read-only. dsm/pve/pbs stop after the TLS handshake (no HTTP request, no login). For PFX/P12 (macOS 15+; .pfx/.p12 extension, or any file with --pfx) you are prompted for the password without echo. --password-stdin reads one line from piped stdin (prompts hidden instead if stdin is a terminal). Passwords are never stored. CERTCHECK_PFX_PASSWORD is no longer supported. Exit 0 = no failures, 1 = failures, 2 = usage.
     """
-    static let services: [String: Service] = ["https": .https, "tls": .tls, "ldaps": .ldaps, "ldap-starttls": .ldapStartTLS, "smtp-starttls": .smtpStartTLS, "smtps": .smtps, "imap-starttls": .imapStartTLS, "imaps": .imaps, "pop3-starttls": .pop3StartTLS, "pop3s": .pop3s, "mysql": .mysql, "rdp": .rdp, "rdg": .rdGateway, "winrm": .winrmHTTPS]
+    static let services: [String: Service] = ["https": .https, "tls": .tls, "ldaps": .ldaps, "ldap-starttls": .ldapStartTLS, "smtp-starttls": .smtpStartTLS, "smtps": .smtps, "imap-starttls": .imapStartTLS, "imaps": .imaps, "pop3-starttls": .pop3StartTLS, "pop3s": .pop3s, "mysql": .mysql, "rdp": .rdp, "rdg": .rdGateway, "winrm": .winrmHTTPS, "dsm": .synologyDSM, "pve": .proxmoxVE, "pbs": .proxmoxBackup]
 
     static func option(_ args: inout [String], _ name: String) -> String? {
         guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
@@ -64,7 +68,7 @@ import Foundation
             }
             exit(check && (missing > 0 || AppConfig.loadError != nil) ? 1 : 0)
         }
-        guard let cmd = args.first, ["file", "probe", "wireguard", "ipsec", "radius", "radius-probe", "rdp", "rdg", "winrm"].contains(cmd) else { print(usage); exit(args.isEmpty || args == ["--help"] ? 0 : 2) }
+        guard let cmd = args.first, ["file", "probe", "wireguard", "ipsec", "radius", "radius-probe", "rdp", "rdg", "winrm", "dsm", "pve", "pbs"].contains(cmd) else { print(usage); exit(args.isEmpty || args == ["--help"] ? 0 : 2) }
         args.removeFirst()
         if cmd == "wireguard" {
             let expected = option(&args, "--expect-public")
@@ -130,6 +134,7 @@ import Foundation
         }
         let port = option(&args, "--port").map { Int($0) ?? -1 }
         let sni = option(&args, "--sni") ?? "", expect = option(&args, "--expect") ?? ""
+        let pin = option(&args, "--fingerprint")
         var checkHTTP = false, httpPort = WinRMHTTP.defaultPort
         if cmd == "winrm" {
             checkHTTP = args.contains("--check-http"); args.removeAll { $0 == "--check-http" }
@@ -137,7 +142,12 @@ import Foundation
         }
         if cmd != "probe" { args.insert(cmd, at: 0) }
         guard args.count == 2, let svc = services[args[0]] else { print(usage); exit(2) }
-        let t = Target(name: args[1], host: args[1], port: port, service: svc, sni: sni, expectedName: expect)
+        var t = Target(name: args[1], host: args[1], port: port, service: svc, sni: sni, expectedName: expect)
+        if let pin {
+            guard svc == .proxmoxBackup else { fputs("--fingerprint applies only to pbs.\n", stderr); print(usage); exit(2) }
+            guard FingerprintPin.normalize(pin) != nil else { fputs("--fingerprint must be a SHA-256 colon-hex value (AA:BB:…, 32 bytes).\n", stderr); exit(2) }
+            t.fingerprintPin = pin
+        }
         var r = await Probe.run(t)
         if checkHTTP {
             fputs("Warning: checking the WinRM HTTP listener on \(httpPort) uses PLAINTEXT HTTP (one unauthenticated POST /wsman, no credentials).\n", stderr)

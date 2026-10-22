@@ -180,6 +180,7 @@ public enum Probe {
             if r.tlsVersion == nil { f.append(Finding("tlsver", .info, .general, "TLS version not determined", "macOS did not report the negotiated protocol for this connection.")) }
             if let v = r.tlsVersion, v == "TLS 1.0" || v == "TLS 1.1" { f.append(Finding("tlsver", .warning, .general, "Server negotiated \(v)", "Disable TLS 1.0/1.1 on the service.")) }
             f = Remote.adjust(f, chain: r.chain, target: target)
+            f = Appliance.adjust(f, chain: r.chain, target: target)
             r.findings = (r.negotiation + f).sorted { $0.severity == $1.severity ? $0.id < $1.id : $0.severity > $1.severity }
         } catch {
             r.duration = Date().timeIntervalSince(start)

@@ -1,4 +1,4 @@
-# Deployment: Certificate Checker 0.5.2
+# Deployment: Certificate Checker 0.6.0
 
 ## Requirements
 

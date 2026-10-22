@@ -10,6 +10,7 @@ DERIVED="${DERIVED:-$HOME/Library/Caches/CertificateChecker/DerivedData}"
 [ -f "$ROOT/Tests/Fixtures/ipsec-rollleaf.crt" ] || "$ROOT/Tests/make-ipsec-fixtures.sh"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-pfsense-2.7-config.xml" ] || "$ROOT/Tests/make-synthetic-fixtures.sh"
 [ -f "$ROOT/Tests/Fixtures/rdp-selfexpired.pem" ] || "$ROOT/Tests/make-remote-fixtures.sh"
+[ -f "$ROOT/Tests/Fixtures/SYNTHETIC-pbs-selfsigned.pem" ] || "$ROOT/Tests/make-appliance-fixtures.sh"
 (cd "$ROOT" && xcodegen generate --quiet)
 FIXTURES="$(dirname "$DERIVED")/fixtures"
 rm -rf "$FIXTURES"; mkdir -p "$FIXTURES"; cp "$ROOT"/Tests/Fixtures/* "$ROOT/Tests/tls_server.py" "$FIXTURES/"
@@ -76,3 +77,9 @@ for bad in "rdp" "rdg" "winrm" "winrm h.example.test --http-port 5985" "rdp a b"
   [ "$rc" = 2 ] || { echo "  '$bad' exit $rc (want 2)"; exit 1; }
 done
 echo "  ok  usage errors exit 2 (including --http-port without --check-http)"
+echo "CLI dsm / pve / pbs usage and fingerprint validation (no network)…"
+for bad in "dsm" "pve" "pbs" "pve a b" "dsm h.example.test --fingerprint 00" "pbs h.example.test --fingerprint not-a-fingerprint" "pbs h.example.test --fingerprint AA:BB"; do
+  set +e; "$CLI" $bad >/dev/null 2>&1; rc=$?; set -e
+  [ "$rc" = 2 ] || { echo "  '$bad' exit $rc (want 2)"; exit 1; }
+done
+echo "  ok  usage errors exit 2 (including --fingerprint on dsm and malformed pins)"
