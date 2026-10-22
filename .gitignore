@@ -1,0 +1,11 @@
+.build/
+dist/
+.DS_Store
+*.xcodeproj/xcuserdata/
+# Local, organisation-specific files (never published)
+config.local.json
+VALIDATION-local.md
+identifier-patterns.local.txt
+
+# Generated Xcode project (created by xcodegen from project.yml)
+CertificateChecker.xcodeproj/

@@ -1,0 +1,14 @@
+{
+  "organizationName": "Example Organisation",
+  "kbRoot": "~/Documents/KB",
+  "kbLinks": {
+    "pki": "Security/certificate-lifecycle.md",
+    "runbook": "Security/cert-validation-runbook.txt",
+    "radiusGuide": "https://docs.example.com/radius"
+  },
+  "defaultDomain": "example.com",
+  "hostPlaceholder": "host.example.com",
+  "vpnHostPlaceholder": "vpn.example.com",
+  "radiusHostPlaceholder": "radius.example.com",
+  "signingProcedureDoc": "SIGNING-PROCEDURE.md"
+}

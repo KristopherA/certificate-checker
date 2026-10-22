@@ -1,0 +1,10 @@
+title = "certificate-checker gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Throwaway test fixtures for example domains, and one synthetic RADIUS test secret"
+paths = ['''^Tests/Fixtures/''']
+regexTarget = "line"
+regexes = ['''secret: "SYNTH-secret-123", tool: tool\)''']

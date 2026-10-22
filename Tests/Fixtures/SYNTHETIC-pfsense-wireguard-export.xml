@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!-- SYNTHETIC test fixture. Modelled on the pfSense WireGuard package layout; NOT a real export. Generated keys, example.test names. -->
+<pfsense>
+	<installedpackages>
+		<wireguard>
+			<config><item><enable>on</enable><keep_conf>yes</keep_conf><resolve_interval>300</resolve_interval></item></config>
+			<tunnels>
+				<item><name>tun_wg0</name><enabled>yes</enabled><descr><![CDATA[SYNTHETIC road warriors]]></descr><listenport>51820</listenport>
+					<privatekey>+F1ydaAwNk8Qx6aKi2j95o0tvBdMWR8ON6A67wjNg2w=</privatekey><publickey>vyMEiGakfLaLPR7seR7egp43DdEYBf0PKdx/t11M6ws=</publickey><mtu></mtu>
+					<addresses><row><address>198.51.100.1</address><mask>24</mask><descr></descr></row></addresses></item>
+				<item><name>tun_wg1</name><enabled>yes</enabled><descr><![CDATA[SYNTHETIC branch]]></descr><listenport>51821</listenport>
+					<privatekey>GGLE/mmpM0MduQTUpG4aKW3WEKTHunOA00zhHpKzTGY=</privatekey><publickey>jbt8zT5PcfThE2i57vtO5KTwrCH85TVCz86+CAZlvyc=</publickey>
+					<addresses><row><address>203.0.113.1</address><mask>30</mask><descr></descr></row></addresses></item>
+			</tunnels>
+			<peers>
+				<item><enabled>yes</enabled><tun>tun_wg0</tun><descr><![CDATA[SYNTHETIC laptop]]></descr><dynamic>yes</dynamic><persistentkeepalive></persistentkeepalive>
+					<publickey>Td/Zj0AfloEdm025nL3zl6CJvwLKqi0XgsrSrLsw4E8=</publickey><presharedkey>zQyxWBf0APRDGEiJo0CM2MA0zoPCrLJ8l8/aGAB/OVs=</presharedkey>
+					<allowedips><row><address>198.51.100.2</address><mask>32</mask><descr></descr></row></allowedips></item>
+				<item><enabled>yes</enabled><tun>tun_wg0</tun><descr><![CDATA[SYNTHETIC phone]]></descr><dynamic>yes</dynamic>
+					<publickey>H8zpCO8chG+jkzVdg6f5203kFWqDE9oP+etTggfcRhY=</publickey>
+					<allowedips><row><address>198.51.100.3</address><mask>32</mask><descr></descr></row><row><address>2001:db8:66::3</address><mask>128</mask><descr></descr></row></allowedips></item>
+				<item><enabled>yes</enabled><tun>tun_wg1</tun><descr><![CDATA[SYNTHETIC branch fw2]]></descr><endpoint>fw2.example.test</endpoint><port>51821</port><persistentkeepalive>25</persistentkeepalive>
+					<publickey>COYt0K2uiyNVvnD1R1VRAfDKDo3q8aLY5p/VLP2g+RU=</publickey>
+					<allowedips><row><address>203.0.113.2</address><mask>32</mask><descr></descr></row><row><address>203.0.113.128</address><mask>25</mask><descr></descr></row></allowedips></item>
+				<item><enabled>no</enabled><tun>tun_wg0</tun><descr><![CDATA[SYNTHETIC retired]]></descr>
+					<publickey>DYUgBgtRbkH6pGocxSx47Z0/g+YuYUguwxMwX6uI9wI=</publickey><allowedips><row><address>198.51.100.9</address><mask>32</mask><descr></descr></row></allowedips></item>
+			</peers>
+		</wireguard>
+	</installedpackages>
+</pfsense>
