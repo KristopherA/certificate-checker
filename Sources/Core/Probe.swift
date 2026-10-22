@@ -144,17 +144,18 @@ final class StreamConnection {
 public enum Probe {
     public static var timeout: TimeInterval = 15
 
+    /// Whether SecTrust may fetch intermediates (AIA) or revocation data. Off for appliance and registry/Beats/Elasticsearch checks (one handshake, no other traffic).
+    public static func allowsTrustNetworkFetch(_ s: Service) -> Bool { !s.isAppliance && !s.isStack }
     /// Runs on a dedicated thread with its own run loop. Never follows redirects, sends no credentials, reads no application data.
-    /// Whether SecTrust may fetch intermediates (AIA) or revocation data. Off for appliance checks (one handshake, no other traffic).
-    public static func allowsTrustNetworkFetch(_ s: Service) -> Bool { !s.isAppliance }
-    public static func run(_ target: Target, timeout: TimeInterval = Probe.timeout) async -> ProbeResult {
+    /// `registryAPI`: Docker registry targets only, explicitly requested: one unauthenticated GET /v2/ on the same TLS connection.
+    public static func run(_ target: Target, timeout: TimeInterval = Probe.timeout, registryAPI: Bool = false) async -> ProbeResult {
         await withCheckedContinuation { c in
-            let t = Thread { c.resume(returning: runSync(target, timeout: timeout)) }
+            let t = Thread { c.resume(returning: runSync(target, timeout: timeout, registryAPI: registryAPI)) }
             t.stackSize = 1 << 20; t.start()
         }
     }
 
-    public static func runSync(_ target: Target, timeout: TimeInterval = Probe.timeout) -> ProbeResult {
+    public static func runSync(_ target: Target, timeout: TimeInterval = Probe.timeout, registryAPI: Bool = false) -> ProbeResult {
         var r = ProbeResult(target: target)
         let start = Date()
         do {
@@ -184,6 +185,16 @@ public enum Probe {
             if let v = r.tlsVersion, v == "TLS 1.0" || v == "TLS 1.1" { f.append(Finding("tlsver", .warning, .general, "Server negotiated \(v)", "Disable TLS 1.0/1.1 on the service.")) }
             f = Remote.adjust(f, chain: r.chain, target: target)
             f = Appliance.adjust(f, chain: r.chain, target: target)
+            f = Stack.adjust(f, chain: r.chain, target: target)
+            if registryAPI && target.service == .dockerRegistry {
+                do {
+                    try conn.write(RegistryAPI.request(host: target.serverName, port: target.port)); r.transcript.append("C: GET /v2/ (no credentials, explicitly requested)")
+                    var lines: [String] = []
+                    while lines.count < 60 { guard let l = try? conn.readLine() else { break }; if l.isEmpty { break }; lines.append(l) }
+                    r.transcript += lines.prefix(12).map { "S: " + Wire.sanitize($0) }
+                    f += RegistryAPI.findings(RegistryAPI.parse(lines))
+                } catch { f += RegistryAPI.findings(nil, error: error.localizedDescription) }
+            }
             r.findings = (r.negotiation + f).sorted { $0.severity == $1.severity ? $0.id < $1.id : $0.severity > $1.severity }
         } catch {
             r.duration = Date().timeIntervalSince(start)
@@ -191,7 +202,7 @@ public enum Probe {
             let topic: Topic = (error as? ProbeError) != nil ? .startTLS : .connection
             let probe = Finding("probe", .fail, topic, topic == .startTLS ? "TLS upgrade failed" : "Could not complete TLS to \(target.endpoint)", error.localizedDescription)
             // A failed RDP negotiation already explains itself; do not repeat it as a generic upgrade failure.
-            r.findings = r.negotiation.contains { $0.severity == .fail } ? r.negotiation : r.negotiation + [probe]
+            r.findings = r.negotiation.contains { $0.severity == .fail } ? r.negotiation : r.negotiation + [probe] + [Stack.handshakeFailureNote(target)].compactMap { $0 }
         }
         return r
     }

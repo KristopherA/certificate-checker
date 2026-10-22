@@ -2,7 +2,7 @@
 
 **Owner:** your macOS packaging / Apple Developer account administrators
 **Updated:** 21 October 2026
-**Application:** Certificate Checker 0.6.1, macOS 14+, Apple Silicon and Intel. Bundle ID `tools.certificatechecker.desktop`, executable `Certificate Checker`, CLI `certificate-checker`.
+**Application:** Certificate Checker 0.7.0, macOS 14+, Apple Silicon and Intel. Bundle ID `tools.certificatechecker.desktop`, executable `Certificate Checker`, CLI `certificate-checker`.
 **Deliverable:** A signed, notarized installer that installs the app in `/Applications`.
 
 Replace the placeholders with your organisation's values. This document contains no identities, Team ID or notary credentials, and no signing or Apple submission has been done for this build.
@@ -19,7 +19,7 @@ You need a **Developer ID Application** identity for the app and CLI, and a **De
 ## 2. Prepare a release copy outside synced folders
 
 ```sh
-CC_VERSION='0.6.1'
+CC_VERSION='0.7.0'
 CC_APP_IDENTITY='Developer ID Application: REPLACE WITH EXACT ORGANISATION NAME (TEAMID)'
 CC_INSTALLER_IDENTITY='Developer ID Installer: REPLACE WITH EXACT ORGANISATION NAME (TEAMID)'
 CC_NOTARY_PROFILE='CertificateChecker-Notary'
@@ -60,14 +60,15 @@ Install the package and open the app. Confirm Gatekeeper accepts it, run a file 
 
 The build and its verification work wherever the project folder lives, including a folder synced by iCloud Drive (for example under ~/Documents). Moving it to ~/Applications is not required.
 
-iCloud Drive adds `com.apple.FinderInfo` and file-provider extended attributes to bundles in Documents, so `codesign --verify --strict` reports "resource fork, Finder information, or similar detritus not allowed" there even though the signature is intact. The build therefore verifies like this (`Source/verify-signatures.sh`, run automatically at the end of `build.sh`, and runnable on its own without rebuilding):
+iCloud Drive adds `com.apple.FinderInfo` and file-provider extended attributes to bundles in Documents, so `codesign --verify --strict` reports "resource fork, Finder information, or similar detritus not allowed" there even though the signature is intact. The build therefore verifies like this (`verify-signatures.sh` in Source/, the repository root; run automatically at the end of `build.sh`, and runnable on its own without rebuilding):
 
 1. `codesign --verify --deep` on the app and CLI in place.
 2. `ditto --norsrc --noextattr` copies of both into a temporary folder outside Documents, then `codesign --verify --deep --strict` on those copies.
 3. The CDHash of each stripped copy must equal the in-place CDHash; the script fails otherwise and prints the CLI identifier.
 
 ```sh
-Source/verify-signatures.sh   # run from the project folder
+./verify-signatures.sh            # checks Source/dist (what build.sh just built)
+./verify-signatures.sh /path/dir  # checks another copy; the CLI path is printed next to its Identifier
 ```
 
 Rebuilding changes the CLI cdhash (see VALIDATION.md); an outbound firewall such as Little Snitch must re-approve it.

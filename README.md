@@ -1,6 +1,6 @@
 # Certificate Checker
 
-A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.6.1 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server checks), macOS 14+, universal (Apple Silicon and Intel).
+A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.7.0 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server, Docker registry/Logstash Beats/Elasticsearch checks), macOS 14+, universal (Apple Silicon and Intel).
 
 ## Run
 
@@ -148,14 +148,12 @@ printf '%s\n' "$PW" | certificate-checker file bundle.pfx --password-stdin   # p
 
 Exit status is 0 when there are no failures, 1 when there are failures, and 2 for a usage error.
 
-## Not in v0.1 (planned milestones)
+## Planned milestones (not yet implemented)
 
 - pfSense IPsec IKEv2 Cert Manager export checks
 - RADIUS EAP via `eapol_test`
 - RDP / RD Gateway / WinRM
 - Synology, PVE/PBS API checks, including the PBS fingerprint compared with PVE `storage.cfg`
-- Docker registry
-- Beats mTLS
 - Munki
 - FileMaker
 - Retrospect
@@ -274,6 +272,19 @@ The **Appliances** pane and the `dsm`, `pve` and `pbs` CLI commands check the HT
 - **Pin input:** only ASCII hex digits are accepted. Fullwidth or other non-ASCII digits are reported as a malformed pin, not a mismatch.
 
 Live probing against real appliances remains untested; validation uses SYNTHETIC fixtures and a loopback server.
+
+## 0.7.0: Docker registry, Logstash Beats, Elasticsearch and Beats client mTLS
+
+- **Docker registry:** `certificate-checker registry registry.example.test [--port 443|5000] [--ca ca.crt] [--check-v2]` checks the certificate with one TLS handshake. `--check-v2` (the app toggle) also sends one unauthenticated `GET /v2/` on the same TLS connection: 401 with a challenge passes, 200 warns about anonymous access, 404 or other answers warn that this is not a registry v2 endpoint. Without `--check-v2` nothing is sent after the handshake.
+- **Logstash Beats input and Elasticsearch:** `certificate-checker beats HOST [--port 5044]` and `certificate-checker es HOST [--port 9200]`, handshake only. The Elasticsearch 8 auto-configured HTTP CA is flagged. If the handshake fails, a note explains that a server requiring client certificates rejects this checker, which presents none.
+- **`--ca FILE`** (registry, beats, es; "CA file clients use" in the app) checks the served chain offline against the CA your clients are configured with (`ssl.certificate_authorities`, `/etc/docker/certs.d/HOST:PORT/ca.crt`). When it chains, the macOS-trust failure is downgraded to info.
+- **Beats client pair, offline:** `certificate-checker mtls-pair beats.crt beats.key --ca ca.crt` checks that the key matches (in memory, never printed), that the certificate has the clientAuth EKU and is not a CA, its validity, and that it chains to the CA. **Not implemented:** presenting the client certificate in a live handshake, because macOS needs a SecIdentity for that, which means importing the private key into a keychain; keys stay in memory only.
+- **Copy-only guidance:** registry `config.yml` / `REGISTRY_HTTP_TLS_*`, Docker `certs.d`, the Logstash beats input `ssl_*` settings, filebeat.yml `output.logstash` / `output.elasticsearch` `ssl.*`, and `xpack.security.http.ssl.*`.
+- **App:** new "Registry & Beats" section. Trust evaluation for these services never fetches from the network (no AIA, no online revocation).
+- **0.6.1 follow-ups:** `test.sh` runs every step with `CERTCHECK_CONFIG=none`, saves its output and scans it for organisation strings and local-config output; the PVE pin treats a whitespace-only pin as no pin in every check; a pin match on a leaf-only chain says "Pinned"; doc fixes.
+
+Live behaviour against real registries, Logstash and Elasticsearch is untested; validation uses SYNTHETIC fixtures (`Tests/make-stack-fixtures.sh`) and a loopback server.
+- **Review follow-ups:** with `--ca` / the app CA file, the macOS trust failure becomes info only when the untrusted root is the sole problem (chain verifies to the supplied CA, every certificate is inside its validity dates, the leaf covers the host name by SAN); expired, mis-signed or wrong-host certificates still fail. Non-CA certificates in a CA file are warned about. `mtls-pair` fails a client certificate whose only EKU is anyExtendedKeyUsage and explains why. `verify-signatures.sh` defaults to `Source/dist` and prints the CLI path with its Identifier.
 
 ## License
 

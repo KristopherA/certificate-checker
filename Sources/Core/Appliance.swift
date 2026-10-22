@@ -52,8 +52,10 @@ public enum Appliance {
                 out.append(Finding(id, .fail, .appliance, "Fingerprint pin is not a SHA-256 colon-hex value", "Expected 32 bytes as AA:BB:… (64 ASCII hex digits). Copy it from \(hint)", kind: id)); return
             }
             if pin == leaf.sha256 {
-                out.append(Finding(id, .pass, .appliance, "Fingerprint pin matches the served certificate", pin, kind: id))
-                if explainedTrust { downgradeTrust("Trusted by the matching fingerprint pin.", to: .info) }
+                // Leaf only (not self-issued): there is no chain to verify, so trust rests on the pin alone. Say "pinned".
+                let leafOnly = chain.count == 1 && !leaf.isSelfIssued
+                out.append(Finding(id, .pass, .appliance, "Fingerprint pin matches the served certificate", pin + (leafOnly ? " · Pinned: the server sent only its own certificate, so no issuing chain was checked." : ""), kind: id))
+                if explainedTrust { downgradeTrust(leafOnly ? "Pinned: matches the fingerprint pin; the server sent only its own certificate, so the issuing chain was not checked." : "Trusted by the matching fingerprint pin.", to: .info) }
             } else {
                 out.append(Finding(id, .fail, .appliance, "Fingerprint pin does NOT match the served certificate", "Pinned \(pin), served \(leaf.sha256). The certificate was regenerated or replaced, or something else answers on \(target.endpoint). Confirm on the host before updating the pin.", kind: id))
             }
@@ -69,19 +71,21 @@ public enum Appliance {
                 out.append(Finding("dsm-selfsigned", .warning, .appliance, "Synology DSM presents a self-signed certificate", "Clients cannot verify it. Assign a CA-issued certificate to DSM.", kind: "dsm-cert"))
             }
         case .proxmoxVE:
+            // One trimmed-empty test for both the downgrade and the pin check: a whitespace-only pin counts as no pin.
+            let pveRaw = target.fingerprintPin.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
             if isPVEDefault(leaf) {
-                out.append(Finding("pve-default", .warning, .appliance, "Proxmox VE default node certificate (cluster CA)", "Issued by \(leaf.issuer.commonName ?? leaf.issuer.text), the cluster's own CA, which browsers do not trust. Install a custom certificate or use the built-in ACME client; pveproxy then serves it from pveproxy-ssl.pem.\(target.fingerprintPin == nil ? " Identity is unverified without a fingerprint pin: supply --fingerprint (pvenode cert info) to confirm this is your node." : "")", kind: "pve-cert"))
-                if target.fingerprintPin == nil { downgradeTrust("Expected for the default PVE cluster-CA certificate; identity unverified without a fingerprint pin.") }
+                out.append(Finding("pve-default", .warning, .appliance, "Proxmox VE default node certificate (cluster CA)", "Issued by \(leaf.issuer.commonName ?? leaf.issuer.text), the cluster's own CA, which browsers do not trust. Install a custom certificate or use the built-in ACME client; pveproxy then serves it from pveproxy-ssl.pem.\(pveRaw == nil ? " Identity is unverified without a fingerprint pin: supply --fingerprint (pvenode cert info) to confirm this is your node." : "")", kind: "pve-cert"))
+                if pveRaw == nil { downgradeTrust("Expected for the default PVE cluster-CA certificate; identity unverified without a fingerprint pin.") }
             } else if leaf.isSelfIssued {
                 out.append(Finding("pve-selfsigned", .warning, .appliance, "Proxmox VE presents a self-signed certificate", "Clients cannot verify it. Install a CA-issued certificate or use ACME.", kind: "pve-cert"))
             }
-            if let raw = target.fingerprintPin, !raw.trimmingCharacters(in: .whitespaces).isEmpty {
+            if let raw = pveRaw {
                 pinFindings("pve", raw: raw, explainedTrust: isPVEDefault(leaf) || leaf.isSelfIssued, hint: "pvenode cert info on the node (or the GUI: Node › System › Certificates).")
             }
         case .proxmoxBackup:
             let selfSigned = isPBSDefault(leaf)
             if selfSigned { out.append(Finding("pbs-selfsigned", .info, .appliance, "Proxmox Backup Server self-signed certificate (default)", "PVE and proxmox-backup-client trust it only through a pinned SHA-256 fingerprint.", kind: "pbs-cert")) }
-            if let raw = target.fingerprintPin, !raw.trimmingCharacters(in: .whitespaces).isEmpty {
+            if let raw = target.fingerprintPin, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 pinFindings("pbs", raw: raw, explainedTrust: selfSigned, hint: "proxmox-backup-manager cert info or the PBS dashboard › Show Fingerprint.")
             } else if selfSigned {
                 out.append(Finding("pbs-pin", .warning, .appliance, "No fingerprint pin given for a self-signed PBS certificate", "Supply the fingerprint from the PBS host to verify this is the expected server.", kind: "pbs-pin"))

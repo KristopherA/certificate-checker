@@ -6,6 +6,7 @@ public enum Service: String, Codable, CaseIterable, Identifiable {
     case pop3StartTLS = "POP3 STLS", pop3s = "POP3S", mysql = "MySQL TLS"
     case rdp = "RDP (TLS)", rdGateway = "RD Gateway (HTTPS)", winrmHTTPS = "WinRM HTTPS"
     case synologyDSM = "Synology DSM (HTTPS)", proxmoxVE = "Proxmox VE (HTTPS)", proxmoxBackup = "Proxmox Backup Server (HTTPS)"
+    case dockerRegistry = "Docker registry (HTTPS)", logstashBeats = "Logstash Beats input (TLS)", elasticsearch = "Elasticsearch (HTTPS)"
     public var id: String { rawValue }
     public var defaultPort: Int {
         switch self {
@@ -25,18 +26,24 @@ public enum Service: String, Codable, CaseIterable, Identifiable {
         case .synologyDSM: return 5001
         case .proxmoxVE: return 8006
         case .proxmoxBackup: return 8007
+        case .dockerRegistry: return 443   // the stock registry:2 image listens on 5000
+        case .logstashBeats: return 5044
+        case .elasticsearch: return 9200
         }
     }
     public var usesUpgrade: Bool { [.ldapStartTLS, .smtpStartTLS, .imapStartTLS, .pop3StartTLS, .mysql, .rdp].contains(self) }
     /// RDP, RD Gateway and WinRM: Windows remote administration services with their own certificate rules.
     public var isRemoteAdmin: Bool { [.rdp, .rdGateway, .winrmHTTPS].contains(self) }
-    /// Synology DSM, Proxmox VE and Proxmox Backup Server web/API TLS endpoints.
     /// Services whose certificate can be checked against a SHA-256 fingerprint pin.
     public var acceptsFingerprintPin: Bool { self == .proxmoxBackup || self == .proxmoxVE }
+    /// Synology DSM, Proxmox VE and Proxmox Backup Server web/API TLS endpoints.
     public var isAppliance: Bool { [.synologyDSM, .proxmoxVE, .proxmoxBackup].contains(self) }
-    /// Guidance platform to use when the target is left on Generic.
+    /// Docker registry, Logstash Beats input and Elasticsearch TLS endpoints (0.7.0).
+    public var isStack: Bool { [.dockerRegistry, .logstashBeats, .elasticsearch].contains(self) }
+    /// Windows guidance platform for the remote-admin services.
     public var windowsPlatform: Platform? { switch self { case .rdp: return .windowsRDP; case .rdGateway: return .windowsRDGateway; case .winrmHTTPS: return .windowsWinRM; default: return nil } }
-    public var defaultPlatform: Platform? { switch self { case .synologyDSM: return .synology; case .proxmoxVE: return .proxmoxVE; case .proxmoxBackup: return .proxmoxBackup; default: return windowsPlatform } }
+    /// Guidance platform to use when the target is left on Generic.
+    public var defaultPlatform: Platform? { switch self { case .synologyDSM: return .synology; case .proxmoxVE: return .proxmoxVE; case .proxmoxBackup: return .proxmoxBackup; case .dockerRegistry: return .dockerRegistry; case .logstashBeats, .elasticsearch: return .elasticStack; default: return windowsPlatform } }
     /// Equivalent copy-only openssl command for an admin to reproduce the probe.
     public var opensslStartTLS: String? {
         switch self {
@@ -51,6 +58,7 @@ public enum Platform: String, Codable, CaseIterable, Identifiable {
     case nginx = "Linux nginx", apache = "Linux Apache", zimbra = "Zimbra mail", mysql = "MySQL", synology = "Synology DSM"
     case proxmoxVE = "Proxmox VE", proxmoxBackup = "Proxmox Backup Server", macOS = "macOS"
     case windowsRDP = "Windows RDP host", windowsRDGateway = "Windows RD Gateway", windowsWinRM = "Windows WinRM"
+    case dockerRegistry = "Docker registry", elasticStack = "Elastic Stack (Beats / Logstash / Elasticsearch)"
     public var id: String { rawValue }
 }
 

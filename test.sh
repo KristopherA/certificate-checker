@@ -11,11 +11,15 @@ DERIVED="${DERIVED:-$HOME/Library/Caches/CertificateChecker/DerivedData}"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-pfsense-2.7-config.xml" ] || "$ROOT/Tests/make-synthetic-fixtures.sh"
 [ -f "$ROOT/Tests/Fixtures/rdp-selfexpired.pem" ] || "$ROOT/Tests/make-remote-fixtures.sh"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-pbs-selfsigned.pem" ] || "$ROOT/Tests/make-appliance-fixtures.sh"
+[ -f "$ROOT/Tests/Fixtures/SYNTHETIC-beats-client.pem" ] || "$ROOT/Tests/make-stack-fixtures.sh"
 (cd "$ROOT" && xcodegen generate --quiet)
 FIXTURES="$(dirname "$DERIVED")/fixtures"
 rm -rf "$FIXTURES"; mkdir -p "$FIXTURES"; cp "$ROOT"/Tests/Fixtures/* "$ROOT/Tests/tls_server.py" "$FIXTURES/"
-# Tests never read the user's config: built-in generic defaults only.
+# Tests never read the user's config: built-in generic defaults only, for every step below.
 export CERTCHECK_CONFIG=none
+# Full log, scanned at the end for organisation-specific strings and any local-config output.
+LOG="$(dirname "$DERIVED")/test-last.log"; : > "$LOG"
+exec > >(tee "$LOG") 2>&1
 echo "Identifier check (no organisation-specific values in the project tree)…"
 "$ROOT/check-identifiers.sh"
 TMPP="$(mktemp -d)"; printf '# only a comment\n\n' > "$TMPP/comments.txt"
@@ -64,13 +68,11 @@ if [ -z "$(command -v eapol_test)" ] && ! ls /opt/homebrew/bin/eapol_test /opt/h
   set +e; out="$(printf 'SYNTH-secret-123\n' | "$CLI" radius-probe 192.0.2.1 --secret-stdin 2>&1)"; rc=$?; set -e
   [ "$rc" = 3 ] && printf '%s' "$out" | grep -q "eapol_test is not installed" && ! printf '%s' "$out" | grep -q "SYNTH-secret" && echo "  ok  radius-probe skips (exit 3) with install guidance, no network" || { echo "  radius-probe skip check failed (rc=$rc)"; exit 1; }
 else echo "  skip radius-probe skip check: eapol_test is installed (test.sh never sends live RADIUS traffic)"; fi
-echo "CLI config: defaults are generic; user config links (if any) exist…"
+echo "CLI config: defaults are generic (user config never read)…"
 out="$("$CLI" config)"; printf '%s' "$out" | grep -q "KB links: none" && printf '%s' "$out" | grep -q "default domain: example.com" && echo "  ok  built-in defaults are generic" || { echo "  defaults not generic"; exit 1; }
-USERCFG="$HOME/Library/Application Support/CertificateChecker/config.json"
-if [ -f "$USERCFG" ]; then
-  # Reading KB files under ~/Documents is done by the CLI, not the sandboxed test runner.
-  CERTCHECK_CONFIG= "$CLI" --config "$USERCFG" config --check | sed 's/^/  /' || { echo "  a configured KB link is missing"; exit 1; }
-else echo "  skip user config check: no $USERCFG"; fi
+# The user's own config is never read here (CERTCHECK_CONFIG=none for every step). Check it by hand with:
+#   certificate-checker --config PATH config --check
+out="$("$CLI" --config none config --check)" && printf '%s' "$out" | grep -q "^Config: built-in defaults" && echo "  ok  --config none: built-in defaults, config --check passes" || { echo "  --config none did not use built-in defaults"; exit 1; }
 echo "CLI rdp / rdg / winrm usage (no network)…"
 for bad in "rdp" "rdg" "winrm" "winrm h.example.test --http-port 5985" "rdp a b"; do
   set +e; "$CLI" $bad >/dev/null 2>&1; rc=$?; set -e
@@ -83,3 +85,39 @@ for bad in "dsm" "pve" "pbs" "pve a b" "dsm h.example.test --fingerprint 00" "ds
   [ "$rc" = 2 ] || { echo "  '$bad' exit $rc (want 2)"; exit 1; }
 done
 echo "  ok  usage errors exit 2 (including --fingerprint on dsm and malformed pbs/pve pins)"
+echo "CLI registry / beats / es usage and mtls-pair (no network)…"
+for bad in "registry" "beats" "es" "registry a b" "beats h.example.test --check-v2" "es h.example.test --check-v2" "mtls-pair" "mtls-pair $FIXTURES/SYNTHETIC-beats-client.pem"; do
+  set +e; "$CLI" $bad >/dev/null 2>&1; rc=$?; set -e
+  [ "$rc" = 2 ] || { echo "  '$bad' exit $rc (want 2)"; exit 1; }
+done
+"$CLI" mtls-pair "$FIXTURES/SYNTHETIC-beats-client.pem" "$FIXTURES/SYNTHETIC-beats-client.key" --ca "$FIXTURES/SYNTHETIC-stack-ca.pem" >/dev/null 2>&1 && echo "  ok  good client pair exits 0" || { echo "  good client pair did not exit 0"; exit 1; }
+if "$CLI" mtls-pair "$FIXTURES/SYNTHETIC-beats-serveronly.pem" "$FIXTURES/SYNTHETIC-beats-client.key" --ca "$FIXTURES/SYNTHETIC-stack-ca.pem" >/dev/null 2>&1; then echo "  bad client pair exited 0"; exit 1; fi
+out="$("$CLI" mtls-pair "$FIXTURES/SYNTHETIC-beats-client.pem" "$FIXTURES/SYNTHETIC-beats-client.key" --ca "$FIXTURES/SYNTHETIC-stack-ca.pem" 2>&1 || true)"
+if printf '%s' "$out" | grep -qF "$(sed -n 2p "$FIXTURES/SYNTHETIC-beats-client.key")"; then echo "  LEAK of client key"; exit 1; fi
+echo "  ok  usage errors exit 2; bad pair exits non-zero; client key never printed"
+echo "Log scan: no organisation-specific strings, no local-config output…"
+# Word-bounded so "unable"/"unauthenticated" do not match. The organisation word is assembled at run time so this
+# script itself never contains it (check-identifiers scans the tree); the local patterns file, if present, is applied too.
+O="$(printf 'u%s' na)"
+# Scan a snapshot: grepping the live log while tee appends to it can feed matches back into it.
+# The build machine's own checkout and home paths (xcodebuild echoes them, sometimes backslash-escaped) are replaced
+# first: they describe where this copy is built, not what it contains.
+SNAP="$LOG.snap"
+trap 'rm -f "$SNAP"' EXIT   # also removed when a check below exits early
+awk -v r="$ROOT" -v h="$HOME" 'function rep(s, a, b,   i, o) { o = ""; while ((i = index(s, a)) > 0) { o = o substr(s, 1, i - 1) b; s = substr(s, i + length(a)) } return o s }
+  { gsub(/\\ /, " "); $0 = rep($0, r, "<checkout>"); $0 = rep($0, h, "<home>"); print }' "$LOG" > "$SNAP"
+if grep -inE "${O}\\.ca|${O}-|(^|[^a-z])${O}([^a-z]|\$)" "$SNAP" | grep -v 'Log scan' ; then rm -f "$SNAP"; echo "  organisation-specific string in the test log"; exit 1; fi
+# Same patterns and matching as check-identifiers.sh (-iwE); only line numbers are printed, never the matched text.
+PF="${CC_IDENTIFIER_PATTERNS:-$HOME/Library/Application Support/CertificateChecker/identifier-patterns.txt}"
+pargs=()
+if [ "$PF" != none ] && [ -f "$PF" ]; then
+  while IFS= read -r l || [ -n "$l" ]; do case "$l" in '#'*) continue;; esac; [ -n "${l//[[:space:]]/}" ] && pargs+=(-e "$l"); done < "$PF"
+fi
+if [ ${#pargs[@]} -gt 0 ]; then
+  n="$(grep -ciwE "${pargs[@]}" "$SNAP" || true)"
+  if [ "${n:-0}" -gt 0 ]; then echo "  local identifier pattern matched $n log line(s): $(grep -niwE "${pargs[@]}" "$SNAP" | cut -d: -f1 | head -20 | tr '\n' ' ')"; rm -f "$SNAP"; exit 1; fi
+  echo "  log also scanned with $(( ${#pargs[@]} / 2 )) local identifier patterns"
+fi
+if grep -nE '^Config: ' "$SNAP" | grep -v 'Config: built-in defaults'; then echo "  a non-default config was loaded"; exit 1; fi
+if grep -nE 'Application Support/CertificateChecker/config\.json|^  (ok     |MISSING |url     )|organization: [^(]' "$SNAP"; then echo "  local-config output in the test log"; exit 1; fi
+echo "  ok  $(wc -l < "$SNAP" | tr -d ' ') log lines scanned ($LOG)"; rm -f "$SNAP"

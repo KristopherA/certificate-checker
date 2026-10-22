@@ -47,7 +47,7 @@ public enum Advisor {
                 "For HTTPS targets, use Connection Workbench to compare DNS, proxy and route evidence.",
                 "Check the firewall rule on pfSense (Firewall › Rules) for the source network."
             ], commands: ["nc -vz \(Shell.quote(target?.host ?? "HOST")) \(target?.port ?? 443)", target.map(Probe.opensslCommand) ?? "\(Shell.openssl) s_client -connect HOST:443 </dev/null"], docs: [KB.pfSense]))
-        case .csr, .general, .wireguard, .ipsec, .radius, .remote, .appliance: break
+        case .csr, .general, .wireguard, .ipsec, .radius, .remote, .appliance, .stack: break
         }
         return out
     }
@@ -93,6 +93,12 @@ public enum Advisor {
             return Guidance(title: "Active Directory: replace the LDAPS certificate", steps: [why, "Request a new certificate from the AD CS 'Domain Controller Authentication' or Kerberos template on the DC (certlm.msc › Personal › Request New Certificate).", "Remove the expired certificate after the new one is in place.", "Force LDAPS to load the new certificate without reboot using the LDIF below, then re-check LDAPS 636 and StartTLS 389."], commands: ["certutil -store My", "certutil -verify -urlfetch new-dc.cer", "Set-Content renew.ldf \"dn:`nchangetype: modify`nadd: renewServerCertificate`nrenewServerCertificate: 1`n-\"", "ldifde -i -f renew.ldf"], docs: [KB.ldapsReplace, KB.ldapRef, KB.pki])
         case .synology where service == .synologyDSM, .proxmoxVE where service == .proxmoxVE, .proxmoxBackup where service == .proxmoxBackup:
             return ApplianceAdvisor.binding(service, host: host, why: why) ?? Guidance(title: "Reissue and redeploy", steps: [why], commands: [], docs: [KB.pki])
+        case .dockerRegistry where service == .dockerRegistry, .elasticStack where service == .logstashBeats || service == .elasticsearch:
+            return StackAdvisor.binding(service, host: host, port: nil, why: why) ?? Guidance(title: "Reissue and redeploy", steps: [why], commands: [], docs: [KB.pki])
+        case .dockerRegistry:
+            return StackAdvisor.registry(host: host, port: 443, why: why)
+        case .elasticStack:
+            return StackAdvisor.filebeat(why: why)
         case .windowsIIS where service?.isRemoteAdmin == true:
             return RemoteAdvisor.binding(service, host: host, why: why) ?? Guidance(title: "Reissue and redeploy", steps: [why, "Import the new certificate into Local Computer › Personal and bind it to the service."], commands: [], docs: [KB.pki])
         case .windowsIIS:

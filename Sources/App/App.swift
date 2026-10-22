@@ -98,6 +98,35 @@ struct TargetStatus { var result: ProbeResult?; var running = false }
         Task { let r = await Probe.run(t); applResult = r; applRunning = false }
     }
     func addApplianceTarget() { var t = appl.target; t.name = "\(appl.service.rawValue) \(t.host)"; if commit(t) { section = 1 } }
+    // Registry & Beats (Docker registry, Logstash Beats input, Elasticsearch, Beats client mTLS pair)
+    @Published var stk = StackForm()
+    @Published var stkCA: [URL] = []
+    @Published var stkRunning = false
+    @Published var stkResult: ProbeResult?
+    @Published var stkTarget: Target?
+    @Published var pairFiles: [URL] = []
+    @Published var pairFindings: [Finding]?
+    @Published var pairChain: [Certificate] = []
+    func probeStack() {
+        let t = stk.target, v2 = stk.runsV2, ca = stkCA
+        do { try t.validate() } catch { message = error.localizedDescription; return }
+        let anchors: [Certificate]
+        do { anchors = ca.isEmpty ? [] : try Stack.loadCA(ca) } catch { message = error.localizedDescription; return }
+        stkRunning = true; stkTarget = t; stkResult = nil
+        Task {
+            var r = await Probe.run(t, registryAPI: v2)
+            if !anchors.isEmpty && !r.chain.isEmpty { r.findings = Stack.suppliedCA(r.findings, chain: r.chain, ca: anchors, hostname: t.verifyName) }
+            stkResult = r; stkRunning = false
+        }
+    }
+    func checkPair() {
+        let urls = pairFiles, ca = stkCA
+        Task {
+            let r = await Task.detached { MTLSPair.inspect(urls, ca: ca) }.value
+            pairFindings = r.findings; pairChain = r.chain
+        }
+    }
+    func addStackTarget() { var t = stk.target; t.name = "\(stk.service.rawValue) \(t.host)"; if commit(t) { section = 1 } }
     func addRemoteTarget() { var t = rem.target; t.name = "\(rem.service.rawValue) \(t.host)"; if commit(t) { section = 1 } }
     // Targets
     @Published var targets: [Target] = []
@@ -180,14 +209,15 @@ struct ContentView: View {
                 rail(4, "wifi.router", "RADIUS", "EAP server certificate, eapol_test")
                 rail(5, "display", "Remote access", "RDP, RD Gateway, WinRM")
                 rail(6, "externaldrive.connected.to.line.below", "Appliances", "Synology DSM, Proxmox VE, PBS")
+                rail(7, "shippingbox", "Registry & Beats", "Docker registry, Logstash, Elasticsearch, mTLS")
                 Spacer()
                 Label("On demand only", systemImage: "hand.tap").font(.caption)
                 Text("Nothing runs in the background. Private keys are read in memory only and never logged, cached, copied or uploaded. Fix commands are copy-only.").font(.caption).foregroundStyle(.secondary)
-                Text("macOS 14+ · v0.6.1\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
+                Text("macOS 14+ · v0.7.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
                 Text("Config: \(AppConfig.source == "built-in defaults" ? "built-in defaults" : (AppConfig.source as NSString).abbreviatingWithTildeInPath)\(AppConfig.loadError == nil ? "" : " (error, defaults used)")").font(.caption2).foregroundStyle(.secondary).lineLimit(2).help(AppConfig.loadError ?? AppConfig.source).textSelection(.enabled)
             }.padding(24).frame(width: 230).frame(maxHeight: .infinity).background(accent.opacity(0.055))
             Divider()
-            Group { if m.section == 0 { FilesView() } else if m.section == 1 { TargetsView() } else if m.section == 2 { WireGuardView() } else if m.section == 3 { IPsecView() } else if m.section == 4 { RadiusView() } else if m.section == 5 { RemoteView() } else { ApplianceView() } }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group { if m.section == 0 { FilesView() } else if m.section == 1 { TargetsView() } else if m.section == 2 { WireGuardView() } else if m.section == 3 { IPsecView() } else if m.section == 4 { RadiusView() } else if m.section == 5 { RemoteView() } else if m.section == 6 { ApplianceView() } else { StackView() } }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .alert("Certificate Checker", isPresented: Binding(get: { m.message != nil }, set: { if !$0 { m.message = nil } })) { Button("OK") {} } message: { Text(m.message ?? "") }
         .sheet(item: $m.editing) { t in TargetEditor(target: t) }
@@ -341,7 +371,7 @@ struct FindingRow: View {
     let finding: Finding; let platform: Platform; let target: Target?; var identifier: String? = nil
     @State private var open = false
     var body: some View {
-        let guidance = (finding.severity < .warning && finding.kind != "install") ? [] : finding.topic == .wireguard ? WGAdvisor.guidance(for: finding, platform: platform) : finding.topic == .ipsec ? IPsecAdvisor.guidance(for: finding, platform: platform, identifier: identifier) : finding.topic == .radius ? RadiusAdvisor.guidance(for: finding, platform: platform) : finding.topic == .remote ? RemoteAdvisor.guidance(for: finding, target: target) : finding.topic == .appliance ? ApplianceAdvisor.guidance(for: finding, target: target) : Advisor.guidance(for: finding.topic, platform: platform, target: target)
+        let guidance = (finding.severity < .warning && finding.kind != "install") ? [] : finding.topic == .wireguard ? WGAdvisor.guidance(for: finding, platform: platform) : finding.topic == .ipsec ? IPsecAdvisor.guidance(for: finding, platform: platform, identifier: identifier) : finding.topic == .radius ? RadiusAdvisor.guidance(for: finding, platform: platform) : finding.topic == .remote ? RemoteAdvisor.guidance(for: finding, target: target) : finding.topic == .appliance ? ApplianceAdvisor.guidance(for: finding, target: target) : finding.topic == .stack ? StackAdvisor.guidance(for: finding, target: target) : Advisor.guidance(for: finding.topic, platform: platform, target: target)
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top) {
                 SeverityIcon(severity: finding.severity)
@@ -619,6 +649,67 @@ struct ApplianceView: View {
                     if !r.transcript.isEmpty { DisclosureGroup("Protocol transcript") { Text(r.transcript.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) } }
                     CommandRow(command: Probe.opensslCommand(t), caption: "Reproduce manually (copy-only)")
                 }
+            }.padding(28)
+        }
+    }
+}
+
+struct StackView: View {
+    @EnvironmentObject var m: Checker
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Check registry and Beats certificates.").font(.system(size: 30, weight: .semibold, design: .rounded))
+                Text("Docker registry (/v2/ on 443 or 5000), Logstash Beats input (5044) and Elasticsearch (9200): expiry, chain, SAN coverage, key and digest strength, and optionally the chain against the CA file your clients use. One TLS handshake; trust evaluation never fetches from the network.").foregroundStyle(.secondary)
+                GroupBox("Server certificate") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Picker("Service", selection: Binding(get: { m.stk.service }, set: { m.stk.select($0) })) {
+                                Text("Docker registry (443 / 5000)").tag(Service.dockerRegistry); Text("Logstash Beats input (5044)").tag(Service.logstashBeats); Text("Elasticsearch (9200)").tag(Service.elasticsearch)
+                            }.frame(width: 300)
+                            TextField("Host or IP (e.g. \(AppConfig.current.hostPlaceholder))", text: $m.stk.host).frame(maxWidth: 280)
+                            TextField("Port", text: $m.stk.port).frame(width: 70)
+                        }
+                        HStack {
+                            TextField("Expected certificate name (optional)", text: $m.stk.expected).frame(maxWidth: 320)
+                            Button("CA file clients use…") {
+                                let p = NSOpenPanel(); p.allowsMultipleSelection = true; p.canChooseDirectories = false
+                                p.message = "Choose the CA file named by ssl.certificate_authorities (or /etc/docker/certs.d/…/ca.crt). Read in memory only."
+                                if p.runModal() == .OK { m.stkCA = p.urls }
+                            }
+                            Text(m.stkCA.isEmpty ? "No CA file (optional)" : m.stkCA.map(\.lastPathComponent).joined(separator: ", ")).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer()
+                            Button("Add to Targets") { m.addStackTarget() }.disabled(!m.stk.canRun)
+                            Button(m.stkRunning ? "Checking…" : "Check once") { m.probeStack() }.buttonStyle(.borderedProminent).tint(accent).disabled(m.stkRunning || !m.stk.canRun)
+                        }
+                        if m.stk.service == .dockerRegistry {
+                            Toggle("Also send one unauthenticated GET /v2/ (same TLS connection, no credentials)", isOn: $m.stk.checkV2)
+                        }
+                        Text("Guidance is copy-only (registry config.yml, /etc/docker/certs.d, Logstash beats input ssl_*, filebeat.yml ssl.*, elasticsearch.yml). Nothing is executed.").font(.caption).foregroundStyle(.secondary)
+                    }.padding(6)
+                }
+                if let r = m.stkResult, let t = m.stkTarget {
+                    Text("Checked \(t.endpoint) in \(String(format: "%.2f", r.duration))s\(r.tlsVersion.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary)
+                    ResultsView(findings: r.findings, chain: r.chain, platform: t.platform, target: t, extra: nil)
+                    if !r.transcript.isEmpty { DisclosureGroup("Protocol transcript") { Text(r.transcript.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) } }
+                    CommandRow(command: Probe.opensslCommand(t), caption: "Reproduce manually (copy-only)")
+                }
+                GroupBox("Offline: Beats client certificate and key (mTLS)") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Button("Choose files…") {
+                                let p = NSOpenPanel(); p.allowsMultipleSelection = true; p.canChooseDirectories = false
+                                p.message = "Choose the Beats client certificate (ssl.certificate) and its key (ssl.key). Read in memory only."
+                                if p.runModal() == .OK { m.pairFiles = p.urls; m.pairFindings = nil }
+                            }
+                            Text(m.pairFiles.isEmpty ? "No files selected" : m.pairFiles.map(\.lastPathComponent).joined(separator: ", ")).foregroundStyle(.secondary).lineLimit(2)
+                            Spacer()
+                            Button("Check pair") { m.checkPair() }.buttonStyle(.borderedProminent).tint(accent).disabled(m.pairFiles.isEmpty)
+                        }
+                        Text("Checks key match, the clientAuth EKU and the chain to the CA file chosen above (the CA the server trusts for clients). The client certificate is not presented in a live handshake: that would need the key imported into a keychain.").font(.caption).foregroundStyle(.secondary)
+                    }.padding(6)
+                }
+                if let f = m.pairFindings { ResultsView(findings: f, chain: m.pairChain, platform: .elasticStack, target: nil, extra: nil) }
             }.padding(28)
         }
     }

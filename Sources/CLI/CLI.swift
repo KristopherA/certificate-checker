@@ -20,10 +20,16 @@ import Foundation
       certificate-checker pve HOST [--port 8006] [--sni NAME] [--expect NAME] [--fingerprint AA:BB:…]   (Proxmox VE web/API certificate)
       certificate-checker pbs HOST [--port 8007] [--sni NAME] [--expect NAME] [--fingerprint AA:BB:…]
                           (Proxmox Backup Server certificate; --fingerprint compares the served SHA-256 fingerprint with your pin)
-    SERVICE: https tls ldaps ldap-starttls smtp-starttls smtps imap-starttls imaps pop3-starttls pop3s mysql rdp rdg winrm dsm pve pbs
-    Read-only. dsm/pve/pbs stop after the TLS handshake (no HTTP request, no login). For PFX/P12 (macOS 15+; .pfx/.p12 extension, or any file with --pfx) you are prompted for the password without echo. --password-stdin reads one line from piped stdin (prompts hidden instead if stdin is a terminal). Passwords are never stored. CERTCHECK_PFX_PASSWORD is no longer supported. Exit 0 = no failures, 1 = failures, 2 = usage.
+      certificate-checker registry HOST [--port 443|5000] [--sni NAME] [--expect NAME] [--ca FILE] [--check-v2]
+                          (Docker registry certificate; --check-v2 also sends one unauthenticated GET /v2/ on the same TLS connection)
+      certificate-checker beats HOST [--port 5044] [--sni NAME] [--expect NAME] [--ca FILE]   (Logstash Beats input TLS certificate)
+      certificate-checker es HOST [--port 9200] [--sni NAME] [--expect NAME] [--ca FILE]      (Elasticsearch HTTPS certificate)
+                          (--ca: the CA file clients use, e.g. ssl.certificate_authorities; the chain is checked against it offline)
+      certificate-checker mtls-pair CERT KEY [MORE...] [--ca FILE]   (Beats client certificate + key: key match, clientAuth EKU, chain to CA; offline)
+    SERVICE: https tls ldaps ldap-starttls smtp-starttls smtps imap-starttls imaps pop3-starttls pop3s mysql rdp rdg winrm dsm pve pbs registry beats es
+    Read-only. dsm/pve/pbs/beats/es stop after the TLS handshake (no HTTP request, no login); registry too unless --check-v2. The client certificate is never presented in a handshake (mtls-pair is offline only). For PFX/P12 (macOS 15+; .pfx/.p12 extension, or any file with --pfx) you are prompted for the password without echo. --password-stdin reads one line from piped stdin (prompts hidden instead if stdin is a terminal). Passwords are never stored. CERTCHECK_PFX_PASSWORD is no longer supported. Exit 0 = no failures, 1 = failures, 2 = usage.
     """
-    static let services: [String: Service] = ["https": .https, "tls": .tls, "ldaps": .ldaps, "ldap-starttls": .ldapStartTLS, "smtp-starttls": .smtpStartTLS, "smtps": .smtps, "imap-starttls": .imapStartTLS, "imaps": .imaps, "pop3-starttls": .pop3StartTLS, "pop3s": .pop3s, "mysql": .mysql, "rdp": .rdp, "rdg": .rdGateway, "winrm": .winrmHTTPS, "dsm": .synologyDSM, "pve": .proxmoxVE, "pbs": .proxmoxBackup]
+    static let services: [String: Service] = ["https": .https, "tls": .tls, "ldaps": .ldaps, "ldap-starttls": .ldapStartTLS, "smtp-starttls": .smtpStartTLS, "smtps": .smtps, "imap-starttls": .imapStartTLS, "imaps": .imaps, "pop3-starttls": .pop3StartTLS, "pop3s": .pop3s, "mysql": .mysql, "rdp": .rdp, "rdg": .rdGateway, "winrm": .winrmHTTPS, "dsm": .synologyDSM, "pve": .proxmoxVE, "pbs": .proxmoxBackup, "registry": .dockerRegistry, "beats": .logstashBeats, "es": .elasticsearch]
 
     static func option(_ args: inout [String], _ name: String) -> String? {
         guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
@@ -68,7 +74,7 @@ import Foundation
             }
             exit(check && (missing > 0 || AppConfig.loadError != nil) ? 1 : 0)
         }
-        guard let cmd = args.first, ["file", "probe", "wireguard", "ipsec", "radius", "radius-probe", "rdp", "rdg", "winrm", "dsm", "pve", "pbs"].contains(cmd) else { print(usage); exit(args.isEmpty || args == ["--help"] ? 0 : 2) }
+        guard let cmd = args.first, ["file", "probe", "wireguard", "ipsec", "radius", "radius-probe", "rdp", "rdg", "winrm", "dsm", "pve", "pbs", "registry", "beats", "es", "mtls-pair"].contains(cmd) else { print(usage); exit(args.isEmpty || args == ["--help"] ? 0 : 2) }
         args.removeFirst()
         if cmd == "wireguard" {
             let expected = option(&args, "--expect-public")
@@ -84,6 +90,14 @@ import Foundation
             let r = IPsecCheck.inspect(args.map { URL(fileURLWithPath: $0) }, expectedIdentifier: id)
             for s in r.servers { print("server \(s.label) · \(s.cert.subject.text) · expires \(Analysis.fmt(s.cert.notAfter)) · \(s.cert.publicKey.algorithm.description)") }
             for c in r.cas { print("CA \(c.label) · \(c.cert.subject.text) · expires \(Analysis.fmt(c.cert.notAfter))") }
+            printFindings(r.findings)
+            exit(r.findings.contains { $0.severity == .fail } ? 1 : 0)
+        }
+        if cmd == "mtls-pair" {
+            var cas: [URL] = []; while let c = option(&args, "--ca") { cas.append(URL(fileURLWithPath: c)) }
+            guard args.count >= 2, !args.contains(where: { $0.hasPrefix("--") }) else { print(usage); exit(2) }
+            let r = MTLSPair.inspect(args.map { URL(fileURLWithPath: $0) }, ca: cas)
+            for (i, c) in r.chain.enumerated() { print("#\(i + 1) \(c.subject.text) · expires \(Analysis.fmt(c.notAfter)) · \(c.publicKey.algorithm.description)") }
             printFindings(r.findings)
             exit(r.findings.contains { $0.severity == .fail } ? 1 : 0)
         }
@@ -140,6 +154,12 @@ import Foundation
             checkHTTP = args.contains("--check-http"); args.removeAll { $0 == "--check-http" }
             if let p = option(&args, "--http-port") { guard checkHTTP, let n = Int(p) else { print(usage); exit(2) }; httpPort = n }
         }
+        var checkV2 = false, caFiles: [String] = []
+        while let c = option(&args, "--ca") { caFiles.append(c) }
+        if args.contains("--check-v2") {
+            guard cmd == "registry" || (cmd == "probe" && args.first == "registry") else { print(usage); exit(2) }
+            checkV2 = true; args.removeAll { $0 == "--check-v2" }
+        }
         if cmd != "probe" { args.insert(cmd, at: 0) }
         guard args.count == 2, let svc = services[args[0]] else { print(usage); exit(2) }
         var t = Target(name: args[1], host: args[1], port: port, service: svc, sni: sni, expectedName: expect)
@@ -148,7 +168,13 @@ import Foundation
             guard FingerprintPin.normalize(pin) != nil else { fputs("--fingerprint must be a SHA-256 colon-hex value (AA:BB:…, 32 bytes).\n", stderr); exit(2) }
             t.fingerprintPin = pin
         }
-        var r = await Probe.run(t)
+        if !caFiles.isEmpty && !svc.isStack { fputs("--ca applies only to registry, beats and es.\n", stderr); print(usage); exit(2) }
+        if checkV2 { fputs("Note: --check-v2 sends one unauthenticated GET /v2/ after the handshake (no credentials).\n", stderr) }
+        var r = await Probe.run(t, registryAPI: checkV2)
+        if !caFiles.isEmpty && !r.chain.isEmpty {
+            do { r.findings = Stack.suppliedCA(r.findings, chain: r.chain, ca: try Stack.loadCA(caFiles.map { URL(fileURLWithPath: $0) }), hostname: t.verifyName) }
+            catch { fputs("Could not read CA file: \(error.localizedDescription)\n", stderr); exit(2) }
+        }
         if checkHTTP {
             fputs("Warning: checking the WinRM HTTP listener on \(httpPort) uses PLAINTEXT HTTP (one unauthenticated POST /wsman, no credentials).\n", stderr)
             let h = await WinRMHTTP.check(host: t.host, port: httpPort)

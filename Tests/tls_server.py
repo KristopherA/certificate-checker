@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Loopback-only TEST server: speaks the plaintext stage of a protocol, then upgrades to TLS.
-Usage: tls_server.py MODE CERTCHAIN KEY   (MODE: tls smtp imap pop3 ldap mysql smtp-nostarttls rdp-* winrm-http*)
+Usage: tls_server.py MODE CERTCHAIN KEY   (MODE: tls smtp imap pop3 ldap mysql smtp-nostarttls rdp-* winrm-http* registry-401 registry-200 registry-404)
 Prints the bound port on stdout, serves connections until killed."""
 import socket, ssl, sys, threading, struct
 mode, chain, key = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -56,6 +56,20 @@ def winrm_http(c):
         c.sendall(b"HTTP/1.1 404 Not Found\r\nServer: fixture\r\nContent-Length: 0\r\n\r\n"); return
     auth = b"WWW-Authenticate: Negotiate\r\nWWW-Authenticate: Kerberos\r\n" + (b"WWW-Authenticate: Basic realm=\"WSMAN\"\r\n" if mode == "winrm-http-basic" else b"")
     c.sendall(b"HTTP/1.1 401 \r\n" + auth + b"Server: Microsoft-HTTPAPI/2.0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+def registry(c):
+    head = b""
+    while b"\r\n\r\n" not in head and len(head) < 8192:
+        d = c.recv(1024)
+        if not d: return
+        head += d
+    if not head.startswith(b"GET /v2/ HTTP/1.1\r\n") or b"authorization" in head.lower(): return
+    api = b"Docker-Distribution-Api-Version: registry/2.0\r\n"
+    if mode == "registry-401":
+        c.sendall(b"HTTP/1.1 401 Unauthorized\r\n" + api + b"WWW-Authenticate: Bearer realm=\"https://auth.example.test/token\",service=\"registry.example.test\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+    elif mode == "registry-200":
+        c.sendall(b"HTTP/1.1 200 OK\r\n" + api + b"Content-Length: 2\r\nConnection: close\r\n\r\n{}")
+    else:
+        c.sendall(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
 def handle(c):
     try:
         c.settimeout(10); f = c.makefile("rb")
@@ -97,6 +111,8 @@ def handle(c):
             c.sendall(struct.pack("<I", len(payload))[:3] + b"\x00" + payload)
             c.recv(36)
         s = ctx.wrap_socket(c, server_side=True)
+        if mode.startswith("registry-"):
+            registry(s); return
         s.recv(1)
     except Exception:
         pass

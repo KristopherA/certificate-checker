@@ -1,4 +1,4 @@
-# Deployment: Certificate Checker 0.6.1
+# Deployment: Certificate Checker 0.7.0
 
 ## Requirements
 
@@ -38,14 +38,14 @@ To remove the app, delete it and `~/Library/Application Support/CertificateCheck
 
 The build and its verification work wherever the project folder lives, including a folder synced by iCloud Drive (for example under ~/Documents). Moving it to ~/Applications is not required.
 
-iCloud Drive adds `com.apple.FinderInfo` and file-provider extended attributes to bundles in Documents, so `codesign --verify --strict` reports "resource fork, Finder information, or similar detritus not allowed" there even though the signature is intact. The build therefore verifies like this (`Source/verify-signatures.sh`, run automatically at the end of `build.sh`, and runnable on its own without rebuilding):
+iCloud Drive adds `com.apple.FinderInfo` and file-provider extended attributes to bundles in Documents, so `codesign --verify --strict` reports "resource fork, Finder information, or similar detritus not allowed" there even though the signature is intact. The build therefore verifies like this (`verify-signatures.sh` in Source/, the repository root; run automatically at the end of `build.sh`, and runnable on its own without rebuilding):
 
 1. `codesign --verify --deep` on the app and CLI in place.
 2. `ditto --norsrc --noextattr` copies of both into a temporary folder outside Documents, then `codesign --verify --deep --strict` on those copies.
 3. The CDHash of each stripped copy must equal the in-place CDHash; the script fails otherwise and prints the CLI identifier.
 
 ```sh
-Source/verify-signatures.sh   # run from the project folder
+./verify-signatures.sh   # run from Source/ (the repository root)
 ```
 
 Rebuilding changes the CLI cdhash (see VALIDATION.md); Little Snitch must re-approve it.

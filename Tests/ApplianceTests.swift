@@ -146,6 +146,26 @@ final class ApplianceTests: XCTestCase {
         var form = ApplianceForm(); form.select(.proxmoxVE); form.host = "pve1.example.test"; form.fingerprint = c[0].sha256
         XCTAssertEqual(form.target.fingerprintPin, c[0].sha256); form.select(.synologyDSM); XCTAssertEqual(form.fingerprint, "")
     }
+    func testPVEWhitespacePinIsNoPin() throws {
+        let c = try chain("SYNTHETIC-pve-default.pem")
+        for blank in ["   ", "\n\t ", ""] {
+            var t = Target(name: "", host: "pve1.example.test", service: .proxmoxVE); t.fingerprintPin = blank
+            let f = Appliance.adjust(untrusted, chain: c, target: t)
+            XCTAssertNil(sev(f, "pve-pin"), "blank pin \(blank.debugDescription) is no pin")
+            XCTAssertTrue(f.first { $0.id == "pve-default" }!.detail.contains("Identity is unverified"))
+            XCTAssertNotEqual(sev(f, "trust"), .info, "no downgrade without a real pin")
+        }
+    }
+    func testPVELeafOnlyPinSaysPinned() throws {
+        let leaf = try chain("SYNTHETIC-registry-server.pem")[0]
+        XCTAssertFalse(leaf.isSelfIssued)
+        var t = Target(name: "", host: "host.example.test", service: .proxmoxVE); t.fingerprintPin = leaf.sha256
+        let f = Appliance.adjust(untrusted, chain: [leaf], target: t)
+        XCTAssertEqual(sev(f, "pve-pin"), .pass)
+        XCTAssertTrue(f.first { $0.id == "pve-pin" }!.detail.contains("Pinned"), f.first { $0.id == "pve-pin" }!.detail)
+        let full = Appliance.adjust(untrusted, chain: try chain("SYNTHETIC-registry-server.pem"), target: t)
+        XCTAssertFalse(full.first { $0.id == "pve-pin" }!.detail.contains("Pinned:"), "a full chain is not described as leaf-only")
+    }
     func testApplianceTrustNeverFetchesFromNetwork() {
         for s in [Service.synologyDSM, .proxmoxVE, .proxmoxBackup] { XCTAssertFalse(Probe.allowsTrustNetworkFetch(s), s.rawValue) }
         XCTAssertTrue(Probe.allowsTrustNetworkFetch(.https))
