@@ -26,6 +26,11 @@ import Foundation
       certificate-checker es HOST [--port 9200] [--sni NAME] [--expect NAME] [--ca FILE]      (Elasticsearch HTTPS certificate)
                           (--ca: the CA file clients use, e.g. ssl.certificate_authorities; the chain is checked against it offline)
       certificate-checker mtls-pair CERT KEY [MORE...] [--ca FILE]   (Beats client certificate + key: key match, clientAuth EKU, chain to CA; offline)
+      certificate-checker smime FILE [--address ADDR]   (S/MIME certificate usage, address, expiry and strength; offline, PEM or DER)
+      certificate-checker dkim RECORD-FILE [--key FILE]   (DKIM TXT record: key type, strength, sha1, t=y; --key checks the signing key matches; offline, no DNS query)
+      certificate-checker codesign PATH   (.app, binary or .pkg: signature validity, certificate kind and expiry, timestamp, Hardened Runtime; read-only, offline)
+      certificate-checker ssh-hostkeys KEYS-FILE [--known-hosts FILE --host NAME [--port 22]]
+                      (ssh_host_*_key.pub or saved ssh-keyscan output: weak algorithms, and match against known_hosts incl. hashed entries; offline, no connection)
       certificate-checker munki PLIST [--cert FILE] [--key FILE] [--ca FILE] [--probe-repo]
                           (ManagedInstalls plist offline: SoftwareRepoURL, client certificate/key pair and chain to SoftwareRepoCACertificate;
                            --cert/--key/--ca override the plist paths; --probe-repo also makes one TLS handshake to the SoftwareRepoURL host)
@@ -41,6 +46,8 @@ import Foundation
     """
     static let services: [String: Service] = ["https": .https, "tls": .tls, "ldaps": .ldaps, "ldap-starttls": .ldapStartTLS, "smtp-starttls": .smtpStartTLS, "smtps": .smtps, "imap-starttls": .imapStartTLS, "imaps": .imaps, "pop3-starttls": .pop3StartTLS, "pop3s": .pop3s, "mysql": .mysql, "rdp": .rdp, "rdg": .rdGateway, "winrm": .winrmHTTPS, "dsm": .synologyDSM, "pve": .proxmoxVE, "pbs": .proxmoxBackup, "registry": .dockerRegistry, "beats": .logstashBeats, "es": .elasticsearch, "munki-repo": .munkiRepo, "fms": .fileMaker, "retrospect": .retrospectConsole, "hp-ews": .hpPrinter, "waf": .barracudaService, "waf-mgmt": .barracudaManagement]
 
+    /// Returns the value after `name` and removes both. Values may not start with "--": a flag followed by another
+    /// flag (or nothing) exits 2 with "<name> needs a value", so a host or path that begins with "--" is not accepted.
     static func option(_ args: inout [String], _ name: String) -> String? {
         guard let i = args.firstIndex(of: name) else { return nil }
         // A flag with no value (last argument, or followed by another --flag) is a usage error, not a host name.
@@ -88,7 +95,7 @@ import Foundation
             }
             exit(check && (missing > 0 || AppConfig.loadError != nil) ? 1 : 0)
         }
-        guard let cmd = args.first, ["file", "probe", "wireguard", "ipsec", "radius", "radius-probe", "rdp", "rdg", "winrm", "dsm", "pve", "pbs", "registry", "beats", "es", "mtls-pair", "munki", "munki-repo", "fms", "retrospect", "hp-ews", "waf", "waf-mgmt"].contains(cmd) else { print(usage); exit(args.isEmpty || args == ["--help"] ? 0 : 2) }
+        guard let cmd = args.first, ["file", "probe", "wireguard", "ipsec", "radius", "radius-probe", "rdp", "rdg", "winrm", "dsm", "pve", "pbs", "registry", "beats", "es", "mtls-pair", "munki", "munki-repo", "fms", "retrospect", "hp-ews", "waf", "waf-mgmt", "smime", "dkim", "codesign", "ssh-hostkeys"].contains(cmd) else { print(usage); exit(args.isEmpty || args == ["--help"] ? 0 : 2) }
         args.removeFirst()
         if cmd == "wireguard" {
             let expected = option(&args, "--expect-public")
@@ -106,6 +113,54 @@ import Foundation
             for c in r.cas { print("CA \(c.label) · \(c.cert.subject.text) · expires \(Analysis.fmt(c.cert.notAfter))") }
             printFindings(r.findings)
             exit(r.findings.contains { $0.severity == .fail } ? 1 : 0)
+        }
+        if cmd == "ssh-hostkeys" {
+            let kh = option(&args, "--known-hosts"), host = option(&args, "--host"), port = parsePort(option(&args, "--port")) ?? 22
+            guard args.count == 1, !args[0].hasPrefix("--"), (kh == nil) == (host == nil) else { print(usage); exit(2) }
+            func read(_ p: String) -> String {
+                let u = URL(fileURLWithPath: p)
+                guard let a = try? FileManager.default.attributesOfItem(atPath: u.path), (a[.type] as? FileAttributeType) == .typeRegular,
+                      ((a[.size] as? NSNumber)?.intValue ?? 0) <= FileCheck.maxFileSize, let d = try? Data(contentsOf: u) else { fputs("Could not read \(p) (regular file, at most 2 MB).\n", stderr); exit(2) }
+                return String(decoding: d, as: UTF8.self)
+            }
+            let keys = SSHHostKeys.parseHostKeys(read(args[0]))
+            for k in keys { print("\(k.type) \(k.fingerprint)") }
+            let f = SSHHostKeys.inspect(hostKeys: keys, knownHosts: kh.map { SSHHostKeys.parseKnownHosts(read($0)) }, host: host, port: port)
+            printFindings(f); exit(f.contains { $0.severity == .fail } ? 1 : 0)
+        }
+        if cmd == "codesign" {
+            guard args.count == 1, !args[0].hasPrefix("--") else { print(usage); exit(2) }
+            let i: CodeSign.Info
+            do { i = try CodeSign.info(URL(fileURLWithPath: args[0])) } catch { fputs("\(error.localizedDescription)\n", stderr); exit(2) }
+            if let id = i.identifier { print("Identifier: \(id)") }
+            for (n, c) in i.chain.enumerated() { print("#\(n + 1) \(c.subject.text) · expires \(Analysis.fmt(c.notAfter))") }
+            let f = CodeSign.inspect(i)
+            printFindings(f); exit(f.contains { $0.severity == .fail } ? 1 : 0)
+        }
+        if cmd == "dkim" {
+            let key = option(&args, "--key").map { URL(fileURLWithPath: $0) }
+            guard args.count == 1, !args[0].hasPrefix("--") else { print(usage); exit(2) }
+            let r: DKIMRecord, pk: PublicKeyInfo?
+            do { r = try DKIM.recordFile(URL(fileURLWithPath: args[0])); pk = try key.map { try DKIM.privateKeyPublicHalf($0) } }
+            catch { fputs("\(error.localizedDescription)\n", stderr); exit(2) }
+            print("k=\(r.keyType)\(r.publicKey.map { " · \($0.algorithm.description)" } ?? "")")
+            let f = DKIM.inspect(r, privateKey: pk)
+            printFindings(f); exit(f.contains { $0.severity == .fail } ? 1 : 0)
+        }
+        if cmd == "smime" {
+            let address = option(&args, "--address")
+            guard args.count == 1, !args[0].hasPrefix("--") else { print(usage); exit(2) }
+            let u = URL(fileURLWithPath: args[0]); let leaf: Certificate
+            do {
+                let a = try FileManager.default.attributesOfItem(atPath: u.path)
+                guard (a[.type] as? FileAttributeType) == .typeRegular, ((a[.size] as? NSNumber)?.intValue ?? 0) <= FileCheck.maxFileSize else { throw CheckError.message("not a regular file of at most 2 MB") }
+                let d = try Data(contentsOf: u, options: .uncached)
+                let blocks = PEM.blocks(String(decoding: d, as: UTF8.self)).filter { $0.label == "CERTIFICATE" }
+                leaf = try Certificate(der: blocks.first?.der ?? [UInt8](d))
+            } catch { fputs("Could not read a certificate from \(args[0]): \(error.localizedDescription)\n", stderr); exit(2) }
+            print("\(leaf.subject.text) · expires \(Analysis.fmt(leaf.notAfter)) · \(leaf.publicKey.algorithm.description)")
+            let f = SMIME.inspect(leaf, address: address)
+            printFindings(f); exit(f.contains { $0.severity == .fail } ? 1 : 0)
         }
         if cmd == "munki" {
             let cert = option(&args, "--cert").map { URL(fileURLWithPath: $0) }, key = option(&args, "--key").map { URL(fileURLWithPath: $0) }
@@ -196,7 +251,7 @@ import Foundation
         var checkHTTP = false, httpPort = WinRMHTTP.defaultPort
         if cmd == "winrm" {
             checkHTTP = args.contains("--check-http"); args.removeAll { $0 == "--check-http" }
-            if let p = option(&args, "--http-port") { guard checkHTTP, let n = Int(p) else { print(usage); exit(2) }; httpPort = n }
+            if let p = option(&args, "--http-port") { guard checkHTTP else { print(usage); exit(2) }; httpPort = parsePort(p)! }
         }
         var checkV2 = false, caFiles: [String] = []
         while let c = option(&args, "--ca") { caFiles.append(c) }

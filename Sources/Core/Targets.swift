@@ -130,29 +130,47 @@ public struct TargetStore {
         self.url = url ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("CertificateChecker", isDirectory: true).appendingPathComponent("targets.json")
     }
-    /// Refuses anything at the targets path that is not a regular file (symlinks included).
-    func requireRegularFile() throws -> Bool {
-        guard let a = try? FileManager.default.attributesOfItem(atPath: url.path) else { return false }
-        guard (a[.type] as? FileAttributeType) == .typeRegular else { throw CheckError.message("\(url.lastPathComponent) is not a regular file (symlink or other type); refusing to read or write it.") }
-        return true
+    /// Refuses a symlinked parent folder. The file itself is opened with O_NOFOLLOW and its type is checked on the
+    /// open descriptor, so a symlink swapped in after a check is never followed.
+    func checkParent() throws {
+        var st = stat(); let dir = url.deletingLastPathComponent().path
+        if lstat(dir, &st) == 0, (st.st_mode & S_IFMT) == S_IFLNK { throw CheckError.message("The folder holding \(url.lastPathComponent) is a symlink; refusing to use it.") }
+    }
+    /// The current file's bytes, or nil when there is none. Anything that is not a regular file is refused.
+    func readRegular() throws -> Data? {
+        try checkParent()
+        let fd = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        if fd < 0 {
+            if errno == ENOENT { return nil }
+            throw CheckError.message("\(url.lastPathComponent) is not a regular file (symlink or other type); refusing to read or write it.")
+        }
+        defer { close(fd) }
+        var st = stat()
+        guard fstat(fd, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { throw CheckError.message("\(url.lastPathComponent) is not a regular file; refusing to read or write it.") }
+        guard st.st_size <= 2_000_000 else { throw CheckError.message("\(url.lastPathComponent) is larger than 2 MB.") }
+        return try FileHandle(fileDescriptor: fd, closeOnDealloc: false).readToEnd() ?? Data()
     }
     public func load() throws -> [Target] {
-        guard try requireRegularFile() else { return [] }
-        return try JSONDecoder().decode([Target].self, from: Data(contentsOf: url))
+        guard let d = try readRegular() else { return [] }
+        return try JSONDecoder().decode([Target].self, from: d)
     }
-    /// Copies the current file to targets.json.bak-<timestamp> (0600) and returns the copy; nil when there is no file.
+    /// Writes the current bytes to targets.json.bak-<timestamp>[-NNN] (0600, never overwriting) and returns it; nil when there is no file.
     @discardableResult public func backup(now: Date = Date()) throws -> URL? {
-        guard try requireRegularFile() else { return nil }
+        guard let data = try readRegular() else { return nil }
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyyMMdd-HHmmss"
-        var dest = url.deletingLastPathComponent().appendingPathComponent(url.lastPathComponent + ".bak-" + f.string(from: now)), n = 1
-        while FileManager.default.fileExists(atPath: dest.path) { n += 1; dest = url.deletingLastPathComponent().appendingPathComponent(url.lastPathComponent + ".bak-" + f.string(from: now) + "-\(n)") }
-        try FileManager.default.copyItem(at: url, to: dest)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: dest.path)
+        let base = url.lastPathComponent + ".bak-" + f.string(from: now), dir = url.deletingLastPathComponent()
+        var dest = dir.appendingPathComponent(base), n = 1
+        while FileManager.default.fileExists(atPath: dest.path) || (try? FileManager.default.destinationOfSymbolicLink(atPath: dest.path)) != nil {
+            n += 1; dest = dir.appendingPathComponent(base + String(format: "-%03d", n))
+        }
+        let fd = open(dest.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+        guard fd >= 0 else { throw CheckError.message("Could not create backup \(dest.lastPathComponent).") }
+        let h = FileHandle(fileDescriptor: fd, closeOnDealloc: true); try h.write(contentsOf: data); try h.close()
         return dest
     }
     public func save(_ targets: [Target]) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        _ = try requireRegularFile()
+        _ = try readRegular()
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
         try enc.encode(targets).write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
@@ -181,14 +199,24 @@ public struct TargetLibrary {
         try store.save(list); targets = list
         Self.pruneBackups(store)
     }
+    /// Validates, saves, and only then updates `targets`. On any error `targets` is unchanged.
+    public mutating func upsert(_ t: Target) throws {
+        try t.validate()
+        var next = targets
+        if let i = next.firstIndex(where: { $0.id == t.id }) { next[i] = t } else { next.append(t) }
+        try save(next)
+    }
+    /// Saves without the target, then updates `targets`. On any error `targets` is unchanged.
+    public mutating func delete(id: UUID) throws { try save(targets.filter { $0.id != id }) }
     /// Keeps the 5 newest backups.
     static func pruneBackups(_ store: TargetStore) {
         let dir = store.url.deletingLastPathComponent(), prefix = store.url.lastPathComponent + ".bak-"
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
         let baks = names.filter { n in
-            guard n.hasPrefix(prefix), let a = try? FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent(n).path) else { return false }
-            return (a[.type] as? FileAttributeType) == .typeRegular
+            var st = stat()
+            return n.hasPrefix(prefix) && lstat(dir.appendingPathComponent(n).path, &st) == 0 && (st.st_mode & S_IFMT) == S_IFREG
         }.sorted()
-        for n in baks.dropLast(5) { try? FileManager.default.removeItem(at: dir.appendingPathComponent(n)) }
+        // unlink never removes a directory and removes a symlink itself, not its target.
+        for n in baks.dropLast(5) { _ = unlink(dir.appendingPathComponent(n).path) }
     }
 }

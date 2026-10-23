@@ -211,17 +211,14 @@ struct TargetStatus { var result: ProbeResult?; var running = false }
         if let e = library.loadError { message = e; return false }
         do {
             try t.validate()
-            var next = targets
-            if let i = next.firstIndex(where: { $0.id == t.id }) { next[i] = t } else { next.append(t) }
-            try library.save(next); targets = next
+            try library.upsert(t); targets = library.targets
             editing = nil; selected = t.id; return true
         } catch { message = error.localizedDescription; return false }
     }
     func delete(_ t: Target) {
         if let e = library.loadError { message = e; return }
-        let next = targets.filter { $0.id != t.id }
-        do { try library.save(next) } catch { message = error.localizedDescription; return }
-        targets = next; status[t.id] = nil; if selected == t.id { selected = nil }
+        do { try library.delete(id: t.id) } catch { message = error.localizedDescription; return }
+        targets = library.targets; status[t.id] = nil; if selected == t.id { selected = nil }
     }
     func check(_ t: Target) {
         status[t.id, default: TargetStatus()].running = true
@@ -274,7 +271,7 @@ struct ContentView: View {
                 Spacer()
                 Label("On demand only", systemImage: "hand.tap").font(.caption)
                 Text("Nothing runs in the background. Private keys are read in memory only and never logged, cached, copied or uploaded. Fix commands are copy-only.").font(.caption).foregroundStyle(.secondary)
-                Text("macOS 14+ · v0.8.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
+                Text("macOS 14+ · v0.9.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
                 Text("Config: \(AppConfig.source == "built-in defaults" ? "built-in defaults" : (AppConfig.source as NSString).abbreviatingWithTildeInPath)\(AppConfig.loadError == nil ? "" : " (error, defaults used)")").font(.caption2).foregroundStyle(.secondary).lineLimit(2).help(AppConfig.loadError ?? AppConfig.source).textSelection(.enabled)
             }.padding(24).frame(width: 230).frame(maxHeight: .infinity).background(accent.opacity(0.055))
             Divider()

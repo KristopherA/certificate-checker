@@ -1,0 +1,3 @@
+sel._domainkey IN TXT ( "v=DKIM1; h=sha1:sha256; t=y; k=rsa; "
+  "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCzM0iZZUpM+QDgxyctPCY084wlqeI97ThfVZE1q4Y86J4hqp7M/KsldqurgyDk"
+  "dtj8h7BeCLZzwtOIAX8u7MHm6hLsjhHeXMHhf87NB6A9KdpuTb8ChRU4I8BHkKwlCZDcIuPauEd0VVL7EUYSdnXfnPSHcnIfGRNsM5ln0AexfwIDAQAB" )

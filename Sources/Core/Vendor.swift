@@ -147,6 +147,12 @@ public enum Munki {
             let data = try Data(contentsOf: u, options: .uncached)
             let text = String(decoding: data, as: UTF8.self)
             let pemKey = text.contains("PRIVATE KEY-----"), pemCert = text.contains("CERTIFICATE-----")
+            let name = u.lastPathComponent
+            if data.isEmpty { throw CheckError.message("\(name) is empty.") }
+            if text.contains("CERTIFICATE REQUEST-----") { throw CheckError.message("\(name) is a certificate signing request (CSR), not a certificate or private key.") }
+            if text.contains("BEGIN PUBLIC KEY-----") || text.contains("BEGIN RSA PUBLIC KEY-----") { throw CheckError.message("\(name) is a public key, not a certificate or private key.") }
+            if !pemKey && !pemCert && text.contains("-----BEGIN") { throw CheckError.message("\(name) is a PEM file holding neither a certificate nor a private key.") }
+            if !pemKey && !pemCert && data.first != 0x30 { throw CheckError.message("\(name) is not a PEM or DER certificate or private key.") }
             if pemKey && pemCert { throw CheckError.message("\(u.lastPathComponent) holds both a certificate and a private key. Select them as separate files.") }
             // DER (no PEM armour): a file that parses as an X.509 certificate is a certificate, anything else is treated as a key.
             let isKey = pemKey || (!pemCert && !text.contains("-----BEGIN") && SecCertificateCreateWithData(nil, data as CFData) == nil)

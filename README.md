@@ -1,6 +1,6 @@
 # Certificate Checker
 
-A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.8.0 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server, Docker registry/Logstash Beats/Elasticsearch, Munki/FileMaker Server/Retrospect/HP printer EWS/Barracuda WAF checks), macOS 14+, universal (Apple Silicon and Intel).
+A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.9.0 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server, Docker registry/Logstash Beats/Elasticsearch, Munki/FileMaker Server/Retrospect/HP printer EWS/Barracuda WAF, S/MIME, DKIM, code-signing and SSH host key checks), macOS 14+, universal (Apple Silicon and Intel).
 
 ## Run
 
@@ -299,7 +299,20 @@ New **Services & devices** section and CLI commands (`munki`, `munki-repo`, `fms
 
 **Untested:** vendor default-certificate detection and behaviour were built from documentation and SYNTHETIC fixtures only (loopback); no probes were made against real Munki, FileMaker, Retrospect, HP or Barracuda products.
 
-**Release coverage (0.8.0):** live probes against real hosts were not run for this release; test coverage is the synthetic fixtures and the loopback server only.
+## 0.9.0: S/MIME, DKIM, code signing, SSH host keys
+
+All four are offline, make no network connection, and are CLI only in this release (not yet in the app).
+
+- `certificate-checker smime FILE [--address ADDR]`: E-mail Protection EKU, key usage for signing and encryption, the address in the SAN (or legacy subject), expiry and key/signature strength.
+- `certificate-checker dkim RECORD-FILE [--key FILE]`: a DKIM TXT record (plain or zone-file form) checked for key type, RSA size (under 1024 fails, under 2048 warns), `h=sha1`, `t=y` and revocation; `--key` confirms the signing private key matches `p=`. No DNS query is made; save the record with `dig +short TXT selector._domainkey.example.com` yourself. The private key is read into memory only.
+- `certificate-checker codesign PATH`: an app, binary or installer package. Signature validity (strict, nested code, all architectures), ad-hoc vs certificate, Developer ID vs development certificate, Code Signing EKU, certificate expiry with or without a secure timestamp, Hardened Runtime and weak keys. Packages use `pkgutil --check-signature`. No online revocation check.
+- `certificate-checker ssh-hostkeys KEYS-FILE [--known-hosts FILE --host NAME [--port 22]]`: host keys from `ssh_host_*_key.pub` or saved `ssh-keyscan` output. Flags DSA and short RSA keys, and compares with known_hosts (hashed entries, `[host]:port`, wildcards, negation and `@revoked`), reporting rotated, unknown and stale keys. The suggested `ssh-keygen -R` is copy-only.
+
+Also: targets.json is opened without following symlinks and a symlinked parent folder is refused; backups made in the same second sort and prune correctly; Munki override files that are empty, CSRs, public keys or junk get specific errors; `--http-port` is range-checked; target add/edit/delete save first and change the list only on success.
+
+Untested against real systems: all four checks were built and tested with SYNTHETIC fixtures (and macOS system binaries for code signing).
+
+**Release coverage (0.9.0):** live probes against real hosts were not run for this release; test coverage is the synthetic fixtures and the loopback server only.
 
 ## License
 
