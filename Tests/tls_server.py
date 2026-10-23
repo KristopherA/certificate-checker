@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Loopback-only TEST server: speaks the plaintext stage of a protocol, then upgrades to TLS.
-Usage: tls_server.py MODE CERTCHAIN KEY   (MODE: tls smtp imap pop3 ldap mysql smtp-nostarttls rdp-* winrm-http* registry-401 registry-200 registry-404)
+Usage: tls_server.py MODE CERTCHAIN KEY   (MODE: tls sni smtp imap pop3 ldap mysql smtp-nostarttls rdp-* winrm-http* registry-401 registry-200 registry-404)
 Prints the bound port on stdout, serves connections until killed."""
 import socket, ssl, sys, threading, struct
 mode, chain, key = sys.argv[1], sys.argv[2], sys.argv[3]
 ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain(chain, key)
+if mode == "sni":
+    # Reports the SNI each client sent, one "SNI <name>" line per handshake, then behaves like "tls".
+    def _sni(sock, name, c): print("SNI %s" % name, flush=True)
+    ctx.sni_callback = _sni
 srv = socket.socket(); srv.bind(("127.0.0.1", 0)); srv.listen(8)
 print(srv.getsockname()[1], flush=True)
 def lines(f):

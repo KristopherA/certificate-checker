@@ -83,12 +83,15 @@ public struct Target: Codable, Identifiable, Equatable, Hashable {
     public var notes: String = ""
     /// Proxmox Backup Server only: expected SHA-256 fingerprint (colon-hex). Optional so older targets.json files still decode.
     public var fingerprintPin: String?
+    /// Optional numeric IP to connect to instead of resolving `host` (split DNS / hairpin NAT workaround).
+    /// SNI and the expected certificate name stay the hostname. Optional so older targets.json files still decode.
+    public var connectIP: String?
 
     public init(name: String, host: String, port: Int? = nil, service: Service, sni: String = "", expectedName: String = "", platform: Platform = .generic, notes: String = "") {
         self.name = name; self.host = host; self.port = port ?? service.defaultPort; self.service = service
         self.sni = sni; self.expectedName = expectedName; self.platform = platform; self.notes = notes
     }
-    enum CodingKeys: String, CodingKey { case id, name, host, port, service, sni, expectedName, platform, notes, fingerprintPin }
+    enum CodingKeys: String, CodingKey { case id, name, host, port, service, sni, expectedName, platform, notes, fingerprintPin, connectIP }
     /// Missing optional keys take their defaults (older or hand-written targets.json). Unknown service/platform values still fail the load.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -102,19 +105,29 @@ public struct Target: Codable, Identifiable, Equatable, Hashable {
         platform = try c.decodeIfPresent(Platform.self, forKey: .platform) ?? .generic
         notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         fingerprintPin = try c.decodeIfPresent(String.self, forKey: .fingerprintPin)
+        connectIP = try c.decodeIfPresent(String.self, forKey: .connectIP)
     }
-    public var serverName: String { sni.isEmpty ? host : sni }
-    public var verifyName: String { expectedName.isEmpty ? serverName : expectedName }
+    /// SNI and the expected name drop one trailing dot: RFC 6066 forbids it in server_name, and certificates never carry it.
+    public var serverName: String { Target.withoutTrailingDot(sni.isEmpty ? host : sni) }
+    public var verifyName: String { expectedName.isEmpty ? serverName : Target.withoutTrailingDot(expectedName) }
+    static func withoutTrailingDot(_ s: String) -> String { s.hasSuffix(".") ? String(s.dropLast()) : s }
+    /// The trimmed connect-IP override, or nil when none is set.
+    public var connectOverride: String? { let s = connectIP?.trimmingCharacters(in: .whitespaces) ?? ""; return s.isEmpty ? nil : s }
+    /// What the socket actually connects to: the override IP, else the host (resolved by the system resolver).
+    public var connectHost: String { connectOverride ?? host }
+    public var resolverSource: ResolverSource { connectOverride != nil ? .override : (Resolution.isIP(host) ? .literal : .system) }
+    public var connectEndpoint: String { connectHost.contains(":") ? "[\(connectHost)]:\(port)" : "\(connectHost):\(port)" }
     public var endpoint: String { host.contains(":") ? "[\(host)]:\(port)" : "\(host):\(port)" }
 
     public static func validHost(_ s: String) -> Bool {
-        guard !s.isEmpty, s.count <= 253 else { return false }
+        guard !s.isEmpty, s.count <= 253, s.contains(where: { $0 != "." }) else { return false }   // "." alone (the DNS root) is not a host
         return s.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) && $0.isASCII || "-.:_".unicodeScalars.contains($0) } && !s.hasPrefix("-")
     }
     public func validate() throws {
         guard Target.validHost(host) else { throw CheckError.message("Host must be a hostname or IP address (letters, digits, '.', '-', ':').") }
         guard (1...65535).contains(port) else { throw CheckError.message("Port must be 1–65535.") }
         for s in [sni, expectedName] where !s.isEmpty { guard Target.validHost(s) else { throw CheckError.message("SNI and expected name must be hostnames.") } }
+        if let ip = connectOverride { guard Resolution.isIP(ip) else { throw CheckError.message("Connect IP must be a numeric IPv4 or IPv6 address.") } }
         if let p = fingerprintPin, !p.trimmingCharacters(in: .whitespaces).isEmpty {
             guard service.acceptsFingerprintPin else { throw CheckError.message("A fingerprint pin applies only to Proxmox Backup Server and Proxmox VE targets.") }
             guard FingerprintPin.normalize(p) != nil else { throw CheckError.message("Fingerprint pin must be a SHA-256 value in colon-hex form (AA:BB:…, 32 bytes).") }

@@ -44,7 +44,7 @@ public enum FileCheck {
         // De-duplicate certificates supplied twice.
         var seen = Set<String>(); r.certificates = r.certificates.filter { seen.insert($0.sha256).inserted }
         var f = r.notes + Analysis.evaluate(certificates: r.certificates, hostname: hostname, purpose: purpose, keys: r.keys, requests: r.requests, now: now)
-        if !r.certificates.isEmpty { f.append(Trust.finding(Trust.evaluate(r.chain, hostname: hostname, purpose: purpose), context: "offline")) }
+        if !r.certificates.isEmpty { f.append(Trust.finding(Trust.evaluate(r.chain, hostname: hostname, purpose: purpose, now: now), context: "offline")) }
         r.findings = f.sorted { $0.severity == $1.severity ? $0.id < $1.id : $0.severity > $1.severity }
         return r
     }

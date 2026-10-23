@@ -18,14 +18,17 @@ xcodebuild -project "$ROOT/CertificateChecker.xcodeproj" -scheme CertificateChec
   -derivedDataPath "$DERIVED" ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- build -quiet
 PRODUCTS="$DERIVED/Build/Products/Release"
 # Sign in a staging folder outside the synced Documents folder, where file-provider metadata cannot interfere.
-STAGE="$(dirname "$DERIVED")/stage"
-rm -rf "$STAGE"; mkdir -p "$STAGE"
+# mktemp -d, never a path derived from the overridable DERIVED, so nothing outside a fresh private folder is removed.
+STAGE="$(mktemp -d "${TMPDIR:-/private/var/tmp}/cc-stage.XXXXXX")"
+trap 'rm -rf "$STAGE"' EXIT
 ditto --norsrc --noextattr "$PRODUCTS/Certificate Checker.app" "$STAGE/Certificate Checker.app"
 ditto --norsrc --noextattr "$PRODUCTS/certificate-checker" "$STAGE/certificate-checker"
 /usr/bin/xattr -cr "$STAGE" 2>/dev/null || true
 /usr/bin/codesign --force --sign - "$STAGE/Certificate Checker.app"
 /usr/bin/codesign --force --sign - "$STAGE/certificate-checker"
+# Strict verify here, outside the synced folder: the file provider re-adds FinderInfo/provenance attributes in dist/.
 /usr/bin/codesign --verify --strict --verbose=1 "$STAGE/Certificate Checker.app"
+/usr/bin/codesign --verify --strict --verbose=1 "$STAGE/certificate-checker"
 rm -rf "$DIST/Certificate Checker.app"
 ditto --norsrc --noextattr "$STAGE/Certificate Checker.app" "$DIST/Certificate Checker.app"
 ditto --norsrc --noextattr "$STAGE/certificate-checker" "$DIST/certificate-checker"

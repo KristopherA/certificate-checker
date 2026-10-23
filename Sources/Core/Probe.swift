@@ -13,6 +13,9 @@ public struct ProbeResult: Identifiable {
     public var error: String?
     /// Findings from the plaintext negotiation stage (RDP X.224), kept even when TLS is not reached.
     public var negotiation: [Finding] = []
+    /// Numeric address of the connected peer (from the socket), and where it came from.
+    public var connectedIP: String?
+    public var resolver: ResolverSource = .system
     public var worst: Severity { findings.map(\.severity).max() ?? .info }
 }
 
@@ -133,6 +136,12 @@ final class StreamConnection {
         try pump { buffer.count >= n }
         let out = Array(buffer[..<n]); buffer.removeFirst(n); return out
     }
+    /// Numeric address of the connected peer, read from the stream's socket.
+    func peerAddress() -> String? {
+        guard let v = CFWriteStreamCopyProperty(output as CFWriteStream, CFStreamPropertyKey.socketNativeHandle) as? Data, v.count == MemoryLayout<CFSocketNativeHandle>.size else { return nil }
+        let fd = v.withUnsafeBytes { $0.load(as: CFSocketNativeHandle.self) }
+        return Resolution.peerAddress(fd: fd)
+    }
     func peerTrust() -> SecTrust? {
         guard let v = input.property(forKey: Stream.PropertyKey(kCFStreamPropertySSLPeerTrust as String)) else { return nil }
         let cf = v as CFTypeRef
@@ -160,11 +169,13 @@ public enum Probe {
         let start = Date()
         do {
             try target.validate()
-            let conn = try StreamConnection(host: target.host, port: target.port, timeout: timeout)
+            r.resolver = target.resolverSource
+            let conn = try StreamConnection(host: target.connectHost, port: target.port, timeout: timeout)
             defer { conn.close() }
             if !target.service.usesUpgrade { conn.setTLS(peerName: target.serverName) }
             try conn.open()
-            r.transcript.append("Connected to \(target.endpoint)")
+            r.connectedIP = conn.peerAddress()   // nil if getpeername fails: the override is then reported as requested, not as the peer
+            r.transcript.append(Resolution.connectedLine(host: target.host, ip: r.connectedIP, port: target.port, source: r.resolver, requested: target.connectOverride))
             if target.service.usesUpgrade {
                 try upgrade(conn, target, &r)
                 // CVE-2011-0411 class: any plaintext buffered after the "go ahead" reply would be treated as protected data.
@@ -196,6 +207,7 @@ public enum Probe {
                     f += RegistryAPI.findings(RegistryAPI.parse(lines))
                 } catch { f += RegistryAPI.findings(nil, error: error.localizedDescription) }
             }
+            f += addressFindings(target, r, f)
             r.findings = (r.negotiation + f).sorted { $0.severity == $1.severity ? $0.id < $1.id : $0.severity > $1.severity }
         } catch {
             r.duration = Date().timeIntervalSince(start)
@@ -204,8 +216,22 @@ public enum Probe {
             let probe = Finding("probe", .fail, topic, topic == .startTLS ? "TLS upgrade failed" : "Could not complete TLS to \(target.endpoint)", error.localizedDescription)
             // A failed RDP negotiation already explains itself; do not repeat it as a generic upgrade failure.
             r.findings = r.negotiation.contains { $0.severity == .fail } ? r.negotiation : r.negotiation + [probe] + [Stack.handshakeFailureNote(target), Vendor.handshakeFailureNote(target)].compactMap { $0 }
+            r.findings += addressFindings(target, r, r.findings)
         }
         return r
+    }
+
+    /// Connected-address note, split-DNS warning, and the firewall hint on a name mismatch.
+    /// When the connection failed before a peer was known, one system lookup supplies the address for the warning.
+    static func addressFindings(_ t: Target, _ r: ProbeResult, _ existing: [Finding], local: [String] = Resolution.localAddresses(), nameservers: () -> [String] = Resolution.systemNameservers) -> [Finding] {
+        var out: [Finding] = []
+        if let ip = r.connectedIP { out.append(Finding("connected-ip", .info, .connection, "Connected to \(ip)", "Address used for \(t.host): \(ip) (\(r.resolver.rawValue)). SNI and the expected name stay \(t.serverName) / \(t.verifyName).")) }
+        else if let ip = t.connectOverride, r.transcript.contains(where: { $0.hasPrefix("Connected to") }) { out.append(Finding("connected-ip", .info, .connection, "Requested \(ip) (peer address unavailable)", "The connect-IP override asked for \(ip); the socket's peer address could not be read. SNI and the expected name stay \(t.serverName) / \(t.verifyName).")) }
+        let addrs = r.connectedIP.map { [$0] } ?? (r.resolver == .system ? Resolution.systemLookup(t.host) : [])
+        let warn = Resolution.splitDNSWarning(host: t.host, addresses: addrs, source: r.resolver, local: local, nameservers: addrs.isEmpty ? [] : nameservers())
+        if let warn { out.append(warn) }
+        if let h = Resolution.firewallHint(existing, splitDNS: warn) { out.append(h) }
+        return out
     }
 
     struct ProbeError: Error, LocalizedError { let text: String; var errorDescription: String? { text } }
@@ -298,8 +324,8 @@ public enum Probe {
     public static func opensslCommand(_ t: Target) -> String {
         let q = Shell.quote
         // openssl s_client cannot perform the RDP X.224 negotiation; nmap's ssl-cert script can.
-        if t.service == .rdp { return "nmap -Pn -p \(t.port) --script rdp-enum-encryption,ssl-cert \(q(t.host))" }
-        var s = "\(Shell.openssl) s_client -connect \(q(t.endpoint)) -servername \(q(t.serverName)) -showcerts -verify_hostname \(q(t.verifyName))"
+        if t.service == .rdp { return "nmap -Pn -p \(t.port) --script rdp-enum-encryption,ssl-cert \(q(t.connectHost))" + (t.connectOverride != nil ? " --script-args tls.servername=\(q(t.serverName))" : "") }
+        var s = "\(Shell.openssl) s_client -connect \(q(t.connectEndpoint)) -servername \(q(t.serverName)) -showcerts -verify_hostname \(q(t.verifyName))"
         if let st = t.service.opensslStartTLS { s += " -starttls \(st)" }
         return s + " </dev/null"
     }

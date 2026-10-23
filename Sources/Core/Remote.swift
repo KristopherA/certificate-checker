@@ -204,14 +204,17 @@ public enum WinRMHTTP {
         return [Finding("winrm-http", .warning, .remote, "WinRM HTTP listener is open on \(port) (plaintext transport)", "Offered: \(offered). The HTTP transport is unencrypted. With Kerberos/Negotiate and AllowUnencrypted=false WinRM still encrypts the message body, but prefer HTTPS on 5986 and limit 5985 to admin networks or remove it.", kind: "winrm-http")]
     }
     /// Synchronous; call from a dedicated thread (uses the current run loop).
-    public static func checkSync(host: String, port: Int = defaultPort, timeout: TimeInterval = 10) -> RemoteHTTPResult {
+    /// `host` is the name sent as the HTTP Host header; `connect` (a connect-IP override) is where the socket goes.
+    public static func checkSync(host: String, connect: String? = nil, port: Int = defaultPort, timeout: TimeInterval = 10) -> RemoteHTTPResult {
         var out = RemoteHTTPResult()
-        guard Target.validHost(host), (1...65535).contains(port) else { out.findings = [Finding("winrm-http", .fail, .connection, "Invalid host or port")]; return out }
+        let connect = connect.flatMap { $0.isEmpty ? nil : $0 }
+        guard Target.validHost(host), connect.map(Resolution.isIP) ?? true, (1...65535).contains(port) else { out.findings = [Finding("winrm-http", .fail, .connection, "Invalid host or port")]; return out }
+        let source: ResolverSource = connect != nil ? .override : (Resolution.isIP(host) ? .literal : .system)
         do {
-            let c = try StreamConnection(host: host, port: port, timeout: timeout)
+            let c = try StreamConnection(host: connect ?? host, port: port, timeout: timeout)
             defer { c.close() }
             try c.open()
-            out.transcript.append("Connected to \(host):\(port) (plaintext HTTP, explicitly requested)")
+            out.transcript.append(Resolution.connectedLine(host: host, ip: c.peerAddress(), port: port, source: source, requested: connect) + ": plaintext HTTP, explicitly requested")
             try c.write(request(host: host, port: port)); out.transcript.append("C: POST /wsman (no credentials, empty body)")
             var lines: [String] = []
             while lines.count < 60 {
@@ -226,9 +229,9 @@ public enum WinRMHTTP {
         }
         return out
     }
-    public static func check(host: String, port: Int = defaultPort, timeout: TimeInterval = 10) async -> RemoteHTTPResult {
+    public static func check(host: String, connect: String? = nil, port: Int = defaultPort, timeout: TimeInterval = 10) async -> RemoteHTTPResult {
         await withCheckedContinuation { c in
-            let t = Thread { c.resume(returning: checkSync(host: host, port: port, timeout: timeout)) }
+            let t = Thread { c.resume(returning: checkSync(host: host, connect: connect, port: port, timeout: timeout)) }
             t.stackSize = 1 << 20; t.start()
         }
     }

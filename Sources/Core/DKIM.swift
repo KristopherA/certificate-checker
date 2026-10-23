@@ -110,12 +110,17 @@ public enum DKIM {
     /// Splits text into TXT records. Without any quote the whole text is one bare record.
     /// Throws on an unterminated quote or a \\DDD escape above 255. Quoted strings that belong to a
     /// following non-TXT record (CAA, SPF-type RRs, …) are not added to the TXT record before it.
+    /// A blank line or a `$TTL`/`$ORIGIN` directive ends the current record; a quoted-only line after that starts a new
+    /// record with no owner. Inside `( … )`, unquoted words are character-strings too (bare continuation lines).
     static func zoneRecords(_ text: String) throws -> [ZoneRecord] {
         guard text.contains("\"") else { return [ZoneRecord(owner: nil, value: text)] }
         var out: [ZoneRecord] = [], depth = 0, current: ZoneRecord?, ignoring = false
+        func close() { if let c = current { out.append(c) }; current = nil }
         for (ln, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init).enumerated() {
-            var strings: [String] = [], bare = "", inQ = false, buf = "", i = 0
+            // Ordered pieces: (text, quoted). Comments (';' outside quotes) end the line.
+            var pieces: [(String, Bool)] = [], inQ = false, buf = "", word = "", i = 0
             let chars = Array(raw), depthAtStart = depth
+            func flushWord() { if !word.isEmpty { pieces.append((word, false)); word = "" } }
             while i < chars.count {
                 let c = chars[i]
                 if inQ {
@@ -127,25 +132,40 @@ public enum DKIM {
                         }
                         buf.append(chars[i + 1]); i += 2; continue
                     }
-                    if c == "\"" { inQ = false; strings.append(buf); buf = "" } else { buf.append(c) }
+                    if c == "\"" { inQ = false; pieces.append((buf, true)); buf = "" } else { buf.append(c) }
                 } else {
                     if c == ";" { break }                       // zone-file comment
-                    if c == "\"" { inQ = true } else if c == "(" { depth += 1 } else if c == ")" { depth = max(0, depth - 1) } else { bare.append(c) }
+                    if c == "\"" { flushWord(); inQ = true }
+                    else if c == "(" { flushWord(); depth += 1 }
+                    else if c == ")" { flushWord(); depth = max(0, depth - 1) }
+                    else if c.isWhitespace { flushWord() } else { word.append(c) }
                 }
                 i += 1
             }
             guard !inQ else { throw CheckError.message("Line \(ln + 1): unterminated quoted string.") }
-            let tokens = bare.split(whereSeparator: \.isWhitespace).map(String.init)
-            if tokens.contains(where: { $0.uppercased() == "TXT" }) {
-                if let c = current { out.append(c) }
-                current = ZoneRecord(owner: raw.first.map { !$0.isWhitespace } == true ? tokens.first : nil, value: ""); ignoring = false
-            } else if depthAtStart == 0, !tokens.isEmpty {
+            flushWord()
+            let words = pieces.filter { !$0.1 }.map(\.0)
+            if depthAtStart == 0 && pieces.isEmpty {
+                // A blank (or comment-only) line ends the record outside parentheses.
+                if raw.trimmingCharacters(in: .whitespaces).isEmpty { close(); ignoring = false }   // comment-only lines change nothing
+                continue
+            }
+            if depthAtStart == 0, let w = words.first, w.hasPrefix("$") { close(); ignoring = false; continue }   // $TTL, $ORIGIN
+            if let ti = pieces.firstIndex(where: { !$0.1 && $0.0.uppercased() == "TXT" }) {
+                close()
+                let hasOwner = raw.first.map { !$0.isWhitespace } == true && words.first.map { !["TXT", "IN"].contains($0.uppercased()) } == true
+                current = ZoneRecord(owner: hasOwner ? words.first : nil, value: pieces[(ti + 1)...].map(\.0).joined()); ignoring = false
+            } else if depthAtStart > 0 {
+                if !ignoring { current?.value += pieces.map(\.0).joined() }
+            } else if !words.isEmpty {
                 // Another resource record (or stray text) starts here: close the TXT record and skip its strings.
-                if let c = current { out.append(c) }; current = nil; ignoring = true
-            } else if current == nil, !ignoring, out.isEmpty, !strings.isEmpty { current = ZoneRecord(owner: nil, value: "") }
-            if !ignoring { current?.value += strings.joined() }
+                close(); ignoring = true
+            } else if !ignoring {
+                if current == nil { current = ZoneRecord(owner: nil, value: "") }
+                current?.value += pieces.map(\.0).joined()
+            }
         }
-        if let c = current { out.append(c) }
+        close()
         return out
     }
     /// A DKIM key record starts with v=DKIM1, or has no v= tag and has p= (RFC 6376 §3.6.1). DMARC, SPF etc. do not count.

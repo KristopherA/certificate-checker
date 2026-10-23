@@ -172,7 +172,7 @@ public enum Analysis {
 extension String { func ifEmpty(_ s: String) -> String { isEmpty ? s : self } }
 
 public enum Trust {
-    public struct Result: Equatable { public let trusted: Bool; public let message: String }
+    public struct Result: Equatable { public let trusted: Bool; public let message: String; public var outsideValidity = false }
     /// Evaluates with the macOS trust store. Network fetching (AIA/OCSP/CRL) is disabled so offline checks contact nothing.
     public static func evaluate(_ chain: [Certificate], hostname: String?, purpose: Purpose, allowNetwork: Bool = false, now: Date = Clock.now()) -> Result {
         let secCerts = chain.compactMap { SecCertificateCreateWithData(nil, Data($0.der) as CFData) }
@@ -185,7 +185,12 @@ public enum Trust {
         SecTrustSetVerifyDate(trust, now as CFDate)
         var error: CFError?
         let ok = SecTrustEvaluateWithError(trust, &error)
-        return Result(trusted: ok, message: ok ? "Trusted by this Mac's trust settings" : ((error as Error?)?.localizedDescription ?? "Not trusted"))
+        // macOS reports the first error only (often "not trusted"); read the per-certificate details for a date failure too.
+        let details = (SecTrustCopyResult(trust) as NSDictionary?)?["TrustResultDetails"] as? [NSDictionary] ?? []
+        let outside = !ok && details.contains { ($0["TemporalValidity"] as? Bool) == false }
+        var msg = ok ? "Trusted by this Mac's trust settings" : ((error as Error?)?.localizedDescription ?? "Not trusted")
+        if outside { msg += ". A certificate in the chain is outside its validity period on the checked date (\(Analysis.fmt(now)))." }
+        var r = Result(trusted: ok, message: msg); r.outsideValidity = outside; return r
     }
     public static func finding(_ r: Result, context: String) -> Finding {
         Finding("trust", r.trusted ? .pass : .fail, .trust, r.trusted ? "Trusted by macOS (\(context))" : "Not trusted by macOS (\(context))", r.message)

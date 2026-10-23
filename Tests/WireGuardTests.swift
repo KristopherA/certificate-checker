@@ -46,7 +46,7 @@ final class WireGuardTests: PinnedTestCase {
     }
     func testCIDR() {
         XCTAssertTrue(CIDR("10.0.0.0/8")!.overlaps(CIDR("10.1.2.3/32")!))
-        XCTAssertFalse(CIDR("10.0.0.0/24")!.overlaps(CIDR("10.0.1.0/24")!))
+        XCTAssertFalse(CIDR("10.0.0.0/25")!.overlaps(CIDR("10.0.0.128/25")!))
         XCTAssertFalse(CIDR("10.0.0.0/8")!.overlaps(CIDR("fd00::/8")!))
         XCTAssertTrue(CIDR("0.0.0.0/0")!.sameNetwork(CIDR("0.0.0.0/0")!))
         XCTAssertNil(CIDR("10.0.0.0/33")); XCTAssertNil(CIDR("bogus"))

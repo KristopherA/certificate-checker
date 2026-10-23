@@ -2,7 +2,7 @@
 
 **Owner:** your macOS packaging / Apple Developer account administrators
 **Updated:** 21 October 2026
-**Application:** Certificate Checker 0.9.1, macOS 14+, Apple Silicon and Intel. Bundle ID `tools.certificatechecker.desktop`, executable `Certificate Checker`, CLI `certificate-checker`.
+**Application:** Certificate Checker 0.10.0 (build 17), macOS 14+, Apple Silicon and Intel. Bundle ID `tools.certificatechecker.desktop`, executable `Certificate Checker`, CLI `certificate-checker`.
 **Deliverable:** A signed, notarized installer that installs the app in `/Applications`.
 
 Replace the placeholders with your organisation's values. This document contains no identities, Team ID or notary credentials, and no signing or Apple submission has been done for this build.
@@ -19,7 +19,7 @@ You need a **Developer ID Application** identity for the app and CLI, and a **De
 ## 2. Prepare a release copy outside synced folders
 
 ```sh
-CC_VERSION='0.9.1'
+CC_VERSION='0.10.0'
 CC_APP_IDENTITY='Developer ID Application: REPLACE WITH EXACT ORGANISATION NAME (TEAMID)'
 CC_INSTALLER_IDENTITY='Developer ID Installer: REPLACE WITH EXACT ORGANISATION NAME (TEAMID)'
 CC_NOTARY_PROFILE='CertificateChecker-Notary'
@@ -72,3 +72,11 @@ iCloud Drive adds `com.apple.FinderInfo` and file-provider extended attributes t
 ```
 
 Rebuilding changes the CLI cdhash (see VALIDATION.md); an outbound firewall such as Little Snitch must re-approve it.
+
+## Extended attributes and `codesign --verify --strict`
+
+`codesign --verify --strict` rejects bundles that carry `com.apple.FinderInfo`, `com.apple.provenance` or file-provider (`com.apple.fileprovider.fpfs#P`) attributes. Inside the synced Documents folder the file provider adds these again after `xattr -cr`, so a strict verify of `Source/dist` fails even though the signature is intact. Therefore:
+
+1. Copy the products into a folder outside the synced tree (build.sh uses a fresh `mktemp -d` folder under `$TMPDIR`, removed on exit), run `xattr -cr` on it, then sign. Use the same rule for the release folder (`$CC_RELEASE`).
+2. Run `codesign --verify --strict` on the app and CLI there, before any copy into Documents. build.sh does this for both.
+3. For the copy in `dist/`, use `verify-signatures.sh`, which strict-verifies a `ditto --norsrc --noextattr` copy and checks the CDHash matches.

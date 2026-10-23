@@ -144,7 +144,12 @@ certificate-checker probe https 198.51.100.5 --sni portal.example --expect porta
 certificate-checker file bundle.pfx                 # prompts for the password without echo
 certificate-checker file identity.bin --pfx          # treat a file without .pfx/.p12 extension as PFX and prompt
 printf '%s\n' "$PW" | certificate-checker file bundle.pfx --password-stdin   # piped; on a terminal it prompts hidden
+certificate-checker probe https portal.example --resolve portal.example:192.0.2.10   # connect to the IP; SNI and expected name stay portal.example
 ```
+
+`--resolve HOST:IP` (live probes, repeatable) connects to IP instead of resolving HOST; SNI, the expected certificate name and the WinRM HTTP `Host` header stay HOST. HOST must be the probed host (one trailing dot is ignored on both sides). IPv6 works bare or in brackets (`--resolve host.example:[2001:db8::10]`); scope IDs such as `fe80::1%en0` are refused. Repeating the same HOST:IP is fine; the same host with two different IPs exits 2, as does an override for another host. `radius-probe` refuses `--resolve` (exit 2), because `eapol_test` resolves the server itself; pass the IP as HOST and use `--expect`. The output shows `Connected to HOST (IP):PORT` and the source (system resolver, connect-IP override or IP literal); if the socket's peer address cannot be read it says "requested IP" instead of presenting the override as the peer.
+
+In the app, **Connect IP** on a target does the same. A malformed Connect IP in a hand-edited `targets.json` still loads; it is reported only when that target is probed ("Connect IP must be a numeric IPv4 or IPv6 address").
 
 Exit status is 0 when there are no failures, 1 when there are failures, and 2 for a usage error.
 
@@ -299,6 +304,21 @@ New **Services & devices** section and CLI commands (`munki`, `munki-repo`, `fms
 
 **Untested:** vendor default-certificate detection and behaviour were built from documentation and SYNTHETIC fixtures only (loopback); no probes were made against real Munki, FileMaker, Retrospect, HP or Barracuda products.
 
+## 0.10.0: connect IP, resolver source and split-DNS warning
+
+Build 17: a bare "." host, SNI or expected name is rejected; check-identifiers.sh is range-neutral (RFC 1918 and 100.64/10 addresses fail unless allowlisted) and reads optional site patterns from a local file outside the tree.
+
+Build 16: SNI and the expected name drop one trailing dot (RFC 6066); check-identifiers.sh fails on private and CGNAT addresses outside a short allowlist; build.sh signs in a `mktemp -d` stage folder.
+
+Build 15 (review fixes): the WinRM HTTP check connects to the connect IP but sends the hostname as `Host`, and logs the shared "Connected to" line; conflicting `--resolve` values exit 2; one trailing dot is ignored when matching; IPv6 scope IDs are refused; an unreadable peer address is shown as "requested", not as the peer; benchmarking (198.18.0.0/15), 192.0.0.0/24, 240.0.0.0/4 and broadcast, NAT64 (64:ff9b::/96) and site-local (fec0::/10) addresses no longer count as public; `radius-probe` refuses `--resolve`; offline trust results also say when a certificate is outside its validity period on the checked date; build.sh strict-verifies the signed app and CLI before copying them into the synced folder.
+
+- Targets can have an optional **Connect IP**, and live CLI probes accept `--resolve HOST:IP` (repeatable). The connection goes to that IP while SNI and the expected certificate name stay the hostname, so you can check the internal server directly when DNS gives the wrong answer. Older `targets.json` files load unchanged.
+- Every probe shows `Connected to HOST (IP):PORT` with the address read from the socket and where it came from (system resolver, connect-IP override or IP literal).
+- If a hostname resolves to a public address while this Mac has a private (RFC 1918, ULA or CGNAT) address, the result warns that split DNS may be bypassed and the connection may hairpin through the firewall. The hint names iCloud Private Relay / Oblivious DNS (`mask.icloud.com`, "Limit IP address tracking") as a common cause and lists the internal DNS servers macOS reports, if any.
+- A certificate name mismatch under that condition adds a hint that the probe may be reaching the firewall instead of the server.
+- The copy-only openssl command uses the connect IP with `-servername HOST`.
+- Fixes: offline file checks pass their own date to trust evaluation; `dkim` zone parsing ends a record at a blank line or `$TTL`/`$ORIGIN`, handles a second record with no owner name, and reads unquoted words inside parentheses; the pkgutil folder is created with `mkdtemp`.
+
 ## 0.9.1: review follow-ups
 
 - `codesign` on a `.pkg` now reads pkgutil's certificate chain: signer name, Team ID, expiry, SHA-256 and notarization status.
@@ -322,7 +342,7 @@ Also: targets.json is opened without following symlinks and a symlinked parent f
 
 Untested against real systems: all four checks were built and tested with SYNTHETIC fixtures (and macOS system binaries for code signing).
 
-**Release coverage (0.9.1):** live probes against real hosts were not run for this release; test coverage is the synthetic fixtures and the loopback server only.
+**Release coverage (0.10.0):** live probes against real hosts were not run for this release; test coverage is the synthetic fixtures and the loopback server only.
 
 ## License
 

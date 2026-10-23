@@ -46,11 +46,16 @@ public enum CodeSign {
     /// pkgutil --check-signature (read-only). Its text output is parsed; certificate details beyond names and expiry are not available.
     /// The package name pkgutil sees, and expects in its `Package "…":` header.
     static let pkgLinkName = "package.pkg"
+    /// mkdtemp creates the folder atomically with 0700 and a name nobody can pre-create.
+    static func privateTempDir(prefix: String = "cc-pkg-") throws -> URL {
+        var template = Array(FileManager.default.temporaryDirectory.appendingPathComponent(prefix + "XXXXXXXX").path.utf8CString)
+        guard let made = template.withUnsafeMutableBufferPointer({ mkdtemp($0.baseAddress!) }) else { throw CheckError.message("Could not create a private temporary folder.") }
+        return URL(fileURLWithPath: String(cString: made), isDirectory: true)
+    }
     static func pkg(_ u: URL) throws -> Info {
         // pkgutil echoes the path verbatim, so a crafted file name could inject lines. Run it on a fixed-name symlink
         // in a private (0700) temporary folder, so nothing it prints comes from the real name.
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("cc-pkg-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        let dir = try privateTempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
         let link = dir.appendingPathComponent(pkgLinkName)
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: u.standardizedFileURL)

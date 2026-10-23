@@ -41,6 +41,8 @@ import Foundation
       certificate-checker hp-ews HOST [--port 443] [--sni NAME] [--expect NAME]   (HP printer EWS: default cert, key size, negotiated protocol)
       certificate-checker waf HOST [--port 443] [--sni NAME] [--expect NAME]        (Barracuda WAF HTTPS service listener)
       certificate-checker waf-mgmt HOST [--port 8443] [--sni NAME] [--expect NAME]  (Barracuda WAF management UI)
+    Live probes also accept --resolve HOST:IP (repeatable): connect to IP instead of resolving HOST; SNI and the expected name stay HOST.
+      Output shows "Connected to HOST (IP):PORT" and whether the address came from the system resolver or an override.
     SERVICE: https tls ldaps ldap-starttls smtp-starttls smtps imap-starttls imaps pop3-starttls pop3s mysql rdp rdg winrm dsm pve pbs registry beats es munki-repo fms retrospect hp-ews waf waf-mgmt
     Read-only. dsm/pve/pbs/beats/es and the vendor checks (munki-repo fms retrospect hp-ews waf waf-mgmt) stop after the TLS handshake (no HTTP request, no login); registry too unless --check-v2. The client certificate is never presented in a handshake (mtls-pair is offline only). For PFX/P12 (macOS 15+; .pfx/.p12 extension, or any file with --pfx) you are prompted for the password without echo. --password-stdin reads one line from piped stdin (prompts hidden instead if stdin is a terminal). Passwords are never stored. CERTCHECK_PFX_PASSWORD is no longer supported. Exit 0 = no failures, 1 = failures, 2 = usage.
     """
@@ -211,6 +213,8 @@ import Foundation
             exit(r.findings.contains { $0.severity == .fail } ? 1 : 0)
         }
         if cmd == "radius-probe" {
+            // eapol_test resolves the server itself; there is no clean way to pin the address, so refuse rather than ignore it.
+            if args.contains("--resolve") { fputs("--resolve is not supported for radius-probe; pass the server IP as HOST and --expect NAME.\n", stderr); exit(2) }
             let name = option(&args, "--expect")
             let port = parsePort(option(&args, "--port")) ?? 1812
             let method: EAPMethod? = ["peap": .peap, "ttls": .ttls][(option(&args, "--method") ?? "peap").lowercased()]
@@ -250,6 +254,12 @@ import Foundation
         let port = parsePort(option(&args, "--port"))
         let sni = option(&args, "--sni") ?? "", expect = option(&args, "--expect") ?? ""
         let pin = option(&args, "--fingerprint")
+        var resolveValues: [String] = []
+        while let v = option(&args, "--resolve") { resolveValues.append(v) }
+        let overrides: [String: String]
+        do { overrides = try Resolution.mergeOverrides(resolveValues) }
+        catch Resolution.OverrideError.conflict(let h) { fputs("--resolve names \(h) more than once with different IPs.\n", stderr); exit(2) }
+        catch { fputs("--resolve must be HOST:IP with a hostname and a numeric IPv4 or IPv6 address (no scope ID).\n", stderr); exit(2) }
         var checkHTTP = false, httpPort = WinRMHTTP.defaultPort
         if cmd == "winrm" {
             checkHTTP = args.contains("--check-http"); args.removeAll { $0 == "--check-http" }
@@ -264,6 +274,10 @@ import Foundation
         if cmd != "probe" { args.insert(cmd, at: 0) }
         guard args.count == 2, let svc = services[args[0]] else { print(usage); exit(2) }
         var t = Target(name: args[1], host: args[1], port: port, service: svc, sni: sni, expectedName: expect)
+        if !overrides.isEmpty {
+            guard let ip = Resolution.override(for: t.host, in: overrides) else { fputs("--resolve does not name the probed host \(t.host).\n", stderr); exit(2) }
+            t.connectIP = ip
+        }
         if let pin {
             guard svc.acceptsFingerprintPin else { fputs("--fingerprint applies only to pbs and pve.\n", stderr); print(usage); exit(2) }
             guard FingerprintPin.normalize(pin) != nil else { fputs("--fingerprint must be a SHA-256 colon-hex value (AA:BB:…, 32 bytes).\n", stderr); exit(2) }
@@ -278,7 +292,7 @@ import Foundation
         }
         if checkHTTP {
             fputs("Warning: checking the WinRM HTTP listener on \(httpPort) uses PLAINTEXT HTTP (one unauthenticated POST /wsman, no credentials).\n", stderr)
-            let h = await WinRMHTTP.check(host: t.host, port: httpPort)
+            let h = await WinRMHTTP.check(host: t.host, connect: t.connectOverride, port: httpPort)
             r.transcript += h.transcript; r.findings += h.findings
         }
         r.transcript.forEach { print("  \($0)") }

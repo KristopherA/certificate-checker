@@ -15,7 +15,7 @@ DERIVED="${DERIVED:-$HOME/Library/Caches/CertificateChecker/DerivedData}"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-vendor-ca.pem" ] || "$ROOT/Tests/make-vendor-fixtures.sh"
 (cd "$ROOT" && xcodegen generate --quiet)
 FIXTURES="$(dirname "$DERIVED")/fixtures"
-rm -rf "$FIXTURES"; mkdir -p "$FIXTURES"; cp "$ROOT"/Tests/Fixtures/* "$ROOT/Tests/tls_server.py" "$FIXTURES/"
+rm -rf "$FIXTURES"; mkdir -p "$FIXTURES"; cp "$ROOT"/Tests/Fixtures/* "$ROOT/Tests/tls_server.py" "$ROOT/Tests/http_capture.py" "$FIXTURES/"
 # Tests never read the user's config: built-in generic defaults only, for every step below.
 export CERTCHECK_CONFIG=none
 # Full log, scanned at the end for organisation-specific strings and any local-config output.
@@ -141,3 +141,19 @@ fi
 if grep -nE '^Config: ' "$SNAP" | grep -v 'Config: built-in defaults'; then echo "  a non-default config was loaded"; exit 1; fi
 if grep -nE 'Application Support/CertificateChecker/config\.json|^  (ok     |MISSING |url     )|organization: [^(]' "$SNAP"; then echo "  local-config output in the test log"; exit 1; fi
 echo "  ok  $(wc -l < "$SNAP" | tr -d ' ') log lines scanned ($LOG)"; rm -f "$SNAP"
+
+# CLI --resolve argument handling (built CLI from build.sh; only 127.0.0.1 port 1 is contacted, which refuses at once).
+CLIBIN="$ROOT/dist/certificate-checker"
+if [ -x "$CLIBIN" ]; then
+  echo "CLI --resolve checks…"
+  want() { local exp="$1"; shift; local got=0; "$CLIBIN" "$@" >/dev/null 2>&1 || got=$?; [ "$got" = "$exp" ] || { echo "  FAIL exit $got (want $exp): $*"; exit 1; }; echo "  ok  exit $exp: ${*}"; }
+  want 2 radius-probe radius.example.test --resolve radius.example.test:127.0.0.1
+  want 2 probe https a.example.test --port 1 --resolve a.example.test:127.0.0.1 --resolve a.example.test:127.0.0.2
+  want 2 probe https a.example.test --port 1 --resolve b.example.test:127.0.0.1
+  want 2 probe https a.example.test --port 1 --resolve a.example.test:fe80::1%lo0
+  want 1 probe https a.example.test --port 1 --resolve a.example.test:127.0.0.1 --resolve a.example.test:127.0.0.1
+  want 1 probe https a.example.test. --port 1 --resolve a.example.test:127.0.0.1
+  want 1 probe https a.example.test --port 1 --resolve a.example.test.:127.0.0.1
+else
+  echo "  (no dist/certificate-checker yet: run build.sh to include the CLI --resolve checks)"
+fi

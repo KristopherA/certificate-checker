@@ -70,8 +70,8 @@ final class RemoteTests: PinnedTestCase {
                              ("rdp-rdpsec", "Standard RDP Security"), ("rdp-legacy", "did not negotiate")] {
             let r = try await rdp(mode)
             XCTAssertNotNil(r.error, mode); XCTAssertTrue(r.chain.isEmpty, mode)
-            XCTAssertEqual(r.findings.count, 1, "\(mode): \(r.findings.map(\.id))")
-            XCTAssertEqual(r.findings.first?.id, "rdp-neg", mode); XCTAssertEqual(r.findings.first?.severity, .fail, mode)
+            XCTAssertEqual(r.findings.filter { $0.id != "connected-ip" }.count, 1, "\(mode): \(r.findings.map(\.id))")
+            XCTAssertEqual(r.findings.first?.id, "rdp-neg", mode); XCTAssertEqual(r.findings.first { $0.id == "connected-ip" }?.severity, .info, mode); XCTAssertEqual(r.findings.first?.severity, .fail, mode)
             XCTAssertTrue(r.findings.first!.title.contains(text), "\(mode): \(r.findings.first!.title)")
         }
     }
@@ -147,7 +147,7 @@ final class RemoteTests: PinnedTestCase {
         for mode in ["rdp-hybridex", "rdp-aad"] {
             let r = try await rdp(mode)
             XCTAssertNotNil(r.error, mode); XCTAssertTrue(r.chain.isEmpty, mode)
-            XCTAssertEqual(r.findings.map(\.id), ["rdp-neg"], mode); XCTAssertTrue(r.findings[0].title.contains("not requested"), mode)
+            XCTAssertEqual(r.findings.map(\.id), ["rdp-neg", "connected-ip"], mode); XCTAssertTrue(r.findings[0].title.contains("not requested"), mode)
         }
     }
     func testLengthChecks() {

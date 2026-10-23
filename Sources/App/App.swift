@@ -79,7 +79,7 @@ struct TargetStatus { var result: ProbeResult?; var running = false }
         Task {
             var r = await Probe.run(t)
             if http {
-                let h = await WinRMHTTP.check(host: t.host)
+                let h = await WinRMHTTP.check(host: t.host, connect: t.connectOverride)
                 r.transcript += h.transcript
                 r.findings = (r.findings + h.findings).sorted { $0.severity == $1.severity ? $0.id < $1.id : $0.severity > $1.severity }
             }
@@ -271,7 +271,7 @@ struct ContentView: View {
                 Spacer()
                 Label("On demand only", systemImage: "hand.tap").font(.caption)
                 Text("Nothing runs in the background. Private keys are read in memory only and never logged, cached, copied or uploaded. Fix commands are copy-only.").font(.caption).foregroundStyle(.secondary)
-                Text("macOS 14+ · v0.9.1\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
+                Text("macOS 14+ · v0.10.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
                 Text("Config: \(AppConfig.source == "built-in defaults" ? "built-in defaults" : (AppConfig.source as NSString).abbreviatingWithTildeInPath)\(AppConfig.loadError == nil ? "" : " (error, defaults used)")").font(.caption2).foregroundStyle(.secondary).lineLimit(2).help(AppConfig.loadError ?? AppConfig.source).textSelection(.enabled)
             }.padding(24).frame(width: 230).frame(maxHeight: .infinity).background(accent.opacity(0.055))
             Divider()
@@ -513,6 +513,7 @@ struct TargetEditor: View {
             TextField("Port", text: $portText).onChange(of: portText) { _, v in if let p = Int(v) { target.port = p } }
             TextField("SNI override (optional)", text: $target.sni)
             TextField("Expected certificate name (optional)", text: $target.expectedName)
+            TextField("Connect IP (optional, bypasses DNS; SNI stays the host)", text: Binding(get: { target.connectIP ?? "" }, set: { target.connectIP = $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0.trimmingCharacters(in: .whitespaces) }))
             if target.service.acceptsFingerprintPin { TextField("Fingerprint pin, SHA-256 AA:BB:… (optional)", text: Binding(get: { target.fingerprintPin ?? "" }, set: { target.fingerprintPin = $0.isEmpty ? nil : $0 })) }
             Picker("Platform (for fix guidance)", selection: $target.platform) { ForEach(Platform.allCases) { Text($0.rawValue).tag($0) } }
             TextField("Notes", text: $target.notes, axis: .vertical).lineLimit(2...4)

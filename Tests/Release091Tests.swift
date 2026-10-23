@@ -118,7 +118,7 @@ final class Release091Tests: PinnedTestCase {
         XCTAssertEqual(try DKIM.record(in: caa).publicKey?.material.count, 32, "CAA value is not appended")
         XCTAssertThrowsError(try DKIM.parse("a IN TXT \"v=DKIM1; p=\(Self.p)\"\nb IN TXT \"v=DKIM1; p=\(Self.p)\""), "parse() takes exactly one record")
     }
-    func testTargetsSaveIs0600AndReplacesSymlinkNotTarget() throws {
+    func testTargetsSaveIs0600AndRefusesSymlinkedFile() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("cc-t-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -127,5 +127,12 @@ final class Release091Tests: PinnedTestCase {
         let mode = (try FileManager.default.attributesOfItem(atPath: store.url.path)[.posixPermissions] as! NSNumber).intValue
         XCTAssertEqual(mode & 0o777, 0o600)
         XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: dir.path).contains { $0.contains(".tmp-") })
+        // A symlinked targets.json is refused, and the file it points at is left untouched.
+        let other = dir.appendingPathComponent("elsewhere.json"); try Data("keep".utf8).write(to: other)
+        try FileManager.default.removeItem(at: store.url)
+        try FileManager.default.createSymbolicLink(at: store.url, withDestinationURL: other)
+        XCTAssertThrowsError(try store.save([]))
+        XCTAssertEqual(try String(contentsOf: other), "keep")
+        XCTAssertNotNil(try? FileManager.default.destinationOfSymbolicLink(atPath: store.url.path), "the link itself is not replaced")
     }
 }
