@@ -1,0 +1,46 @@
+[project]
+name = "certcheck-web"
+version = "0.0.0"
+description = "Certificate Checker Web: Linux-native certificate checks with a web UI (work in progress, milestone M0)."
+requires-python = ">=3.12"
+dependencies = [
+  "cryptography>=43",
+  "pyyaml>=6",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "types-PyYAML",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["certcheck"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-include = ["../shared/tools/*.py", "../shared/fixtures/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
+ignore = ["S101"]  # assert is fine in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S603", "S607"]
+"../shared/fixtures/make_fixture_ca.py" = ["S303"]  # the sha1-signature fixture is deliberately weak
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["certcheck"]

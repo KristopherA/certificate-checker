@@ -1,0 +1,93 @@
+{
+  "case": "ip-only-san-cn-host",
+  "chain_sha256": [
+    "25:AD:4D:FE:84:58:EF:BA:CB:9B:6D:02:9F:7E:28:4D:86:A3:AA:5F:87:93:C1:42:46:5A:E6:26:E9:9C:61:4B",
+    "EC:35:14:1A:F8:68:A1:D2:DD:F3:37:27:D1:68:C4:62:D2:E6:84:71:7D:5B:E5:BC:9B:6C:4C:14:00:02:62:39"
+  ],
+  "chain_validity": [
+    {
+      "not_after": "2027-07-02T00:00:00Z",
+      "not_before": "2026-06-01T00:00:00Z"
+    },
+    {
+      "not_after": "2034-01-01T00:00:00Z",
+      "not_before": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "findings": [
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "fail",
+      "title": "Certificate does not cover ipsan-cn.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (offline)",
+      "topic": "trust"
+    },
+    {
+      "id": "top",
+      "kind": "",
+      "severity": "info",
+      "title": "Bundle stops at an issued certificate",
+      "topic": "chainIncomplete"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 168 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "keymatch-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Private key matches the leaf certificate",
+      "topic": "keyMismatch"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "ipsan-cn.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "purpose": "server",
+  "recorded_by": "macOS FileCheck + SecTrust",
+  "recorded_locale": "en_US",
+  "recorded_tz": "GMT",
+  "schema": 1,
+  "trust_fixture_anchor": {
+    "error_code": -67602,
+    "trusted": false
+  }
+}

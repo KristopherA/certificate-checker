@@ -1,0 +1,74 @@
+{
+  "case": "self-signed",
+  "chain_sha256": [
+    "79:1E:DC:D0:81:60:AE:A1:B5:E8:6D:66:63:B9:27:E5:78:EB:71:DE:AD:8D:75:F6:A0:5D:BE:2A:99:A6:F6:C6"
+  ],
+  "chain_validity": [
+    {
+      "not_after": "2027-07-02T00:00:00Z",
+      "not_before": "2026-06-01T00:00:00Z"
+    }
+  ],
+  "findings": [
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (offline)",
+      "topic": "trust"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 168 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers self.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "keymatch-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Private key matches the leaf certificate",
+      "topic": "keyMismatch"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "self.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "purpose": "server",
+  "recorded_by": "macOS FileCheck + SecTrust",
+  "recorded_locale": "en_US",
+  "recorded_tz": "GMT",
+  "schema": 1,
+  "trust_fixture_anchor": {
+    "error_code": -67843,
+    "trusted": false
+  }
+}

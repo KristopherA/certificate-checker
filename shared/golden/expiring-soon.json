@@ -1,0 +1,93 @@
+{
+  "case": "expiring-soon",
+  "chain_sha256": [
+    "7D:31:B3:CE:02:22:12:09:0B:80:A4:E5:C1:A3:A7:9C:4A:FB:6D:80:28:49:BB:2C:9D:B4:C8:3A:D5:08:CC:57",
+    "EC:35:14:1A:F8:68:A1:D2:DD:F3:37:27:D1:68:C4:62:D2:E6:84:71:7D:5B:E5:BC:9B:6C:4C:14:00:02:62:39"
+  ],
+  "chain_validity": [
+    {
+      "not_after": "2027-01-30T00:00:00Z",
+      "not_before": "2026-02-01T00:00:00Z"
+    },
+    {
+      "not_after": "2034-01-01T00:00:00Z",
+      "not_before": "2026-01-01T00:00:00Z"
+    }
+  ],
+  "findings": [
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (offline)",
+      "topic": "trust"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "warning",
+      "title": "Leaf expires in 15 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "top",
+      "kind": "",
+      "severity": "info",
+      "title": "Bundle stops at an issued certificate",
+      "topic": "chainIncomplete"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers soon.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "keymatch-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Private key matches the leaf certificate",
+      "topic": "keyMismatch"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "soon.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "purpose": "server",
+  "recorded_by": "macOS FileCheck + SecTrust",
+  "recorded_locale": "en_US",
+  "recorded_tz": "GMT",
+  "schema": 1,
+  "trust_fixture_anchor": {
+    "error_code": 0,
+    "trusted": true
+  }
+}

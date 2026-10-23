@@ -1,0 +1,80 @@
+# Known, accepted differences between the Mac app (SecTrust) and Certificate Checker Web (OpenSSL).
+# web/tests/test_parity.py fails on any difference NOT listed here, and on any entry here that no
+# longer occurs, so this file always describes the real state.
+#
+# Parity compares finding id, severity and topic (titles and details are free text), plus the
+# fixture-anchored trust verdict (golden `trust_fixture_anchor.trusted`).
+schema: 1
+
+fixture_differences:
+  - case: ca-as-leaf
+    check: trust_fixture_anchor
+    mac: true
+    web: false
+    reason: >-
+      OpenSSL's sslserver purpose with -x509_strict rejects a leaf with Basic Constraints CA:TRUE
+      ("unsuitable certificate purpose"); SecTrust's SSL policy accepts it. Both still report the
+      ca-leaf warning, so the user sees the problem either way. Web is deliberately the stricter of
+      the two and stays so: a CA:TRUE certificate presented as a server leaf is a misissuance.
+  - case: any-eku-only
+    check: findings
+    mac: [["eku", "pass", "eku"]]
+    web: [["eku", "fail", "eku"]]
+    reason: >-
+      Leaf whose only EKU is anyExtendedKeyUsage. The Mac's eku check accepts it; SecTrust still
+      rejects it for SSL, so both sides report trust fail. Web picks the stricter behaviour in both
+      places: analysis fails the eku check and trust.tls_policy rejects it. Downgrade rules are M2.
+
+# Differences that the fixture cases do not exercise. Documented, not tested.
+general:
+  - topic: trust
+    text: >-
+      The "trust" finding uses the platform store: the macOS keychain on the Mac, ca-certificates
+      (OpenSSL default store) in the container. Internal CAs must be mounted into /config/ca/ for web.
+      Titles say "Not trusted by macOS (...)" on the Mac and "Not trusted (...)" on web.
+  - topic: trust
+    text: >-
+      OpenSSL does not apply Apple's rules itself, so web adds them as explicit policy (trust.tls_policy):
+      SAN required for hostname checks, an EKU extension required, at most 825 days for TLS server
+      certificates, and auth level 2 (no SHA-1, RSA >= 2048). Apple's CT requirement for publicly
+      trusted certificates is not enforced; CT is reported as SCT presence only (M4). The 825-day
+      limit applies only to certificates issued on or after 2019-07-01, as Apple's rule does.
+  - topic: trust
+    text: >-
+      With a hostname, web requires a DNS SAN that covers it (an IP SAN for an IP address); the
+      Common Name is never used. Fixtures ip-only-san-cn-host and email-only-san-cn-host cover this.
+  - topic: trust
+    text: >-
+      Web needs OpenSSL 3 or newer (path and version are shown in trust finding details). The
+      container pins /usr/bin/openssl; Mac runs use Homebrew (currently 4.0.2). Goldens are checked
+      here against whichever OpenSSL runs the tests; CI parity must run on the pinned container
+      OpenSSL (M7).
+  - topic: connection
+    text: >-
+      Web probe target policy (probe.TargetPolicy, env-configurable) denies by default: cloud
+      metadata (169.254.169.254, 169.254.170.2, fd00:ec2::254 and the Alibaba Cloud metadata address in
+      the CGNAT range), link-local, loopback, unspecified, 0.0.0.0/8 and multicast, and the app's own
+      port (CERTCHECK_PORT, default 8080) on loopback, unspecified and the container's own
+      addresses (any other host may be probed on that port, per the spec). IPv6 forms that embed an
+      IPv4 address are judged as that address: IPv4-mapped ::ffff:a.b.c.d, NAT64 64:ff9b::/96, 6to4
+      2002::/16, IPv4-compatible ::a.b.c.d, and Teredo 2001::/32 (both the server and the client
+      address). CERTCHECK_PROBE_ALLOW_LOOPBACK / _ALLOW_LINK_LOCAL /
+      _ALLOW_METADATA=1 opt in; CERTCHECK_PROBE_DENY adds CIDRs. An invalid CERTCHECK_PORT or
+      CIDR fails closed (no probe runs). Private ranges are allowed (internal servers are the use
+      case). Name lookups time out after 5 s and at most 4 run at once; a hung lookup keeps its
+      slot until it really returns, and further lookups fail fast with "resolver busy". Each
+      resolved address is tried once in order; an IPv4/IPv6-only choice is available. The Mac
+      app has no such policy.
+  - topic: trust
+    text: >-
+      SecTrust may fetch missing intermediates (AIA) for live probes; web never does in M1
+      (AIA fetch is optional and off by default, M4). A server that omits an intermediate can
+      therefore be trusted on the Mac but not on web.
+  - topic: connection
+    text: >-
+      The Mac reports the TLS version as "TLS 1.2"; web uses Python's names ("TLSv1.2"). Mac-only
+      probe findings (split-DNS via scutil, Private Relay, firewall hint) are not ported; the
+      split-DNS check against /etc/resolv.conf arrives with the Docker DNS work.
+  - topic: general
+    text: >-
+      PKCS#7 bundles and PFX/P12 files are not read by web in M1 (M3, offline checks).

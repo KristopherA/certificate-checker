@@ -1,0 +1,7 @@
+TEST-ONLY PRIVATE KEYS. These keys, and the root.pem / intermediate.pem
+certificates beside this folder, exist only to build the Certificate Checker
+test fixtures. They are published in the repository, so anyone can sign with
+them.
+
+Never import root.pem, intermediate.pem or any key here into a keychain,
+browser, operating-system trust store, server or device.

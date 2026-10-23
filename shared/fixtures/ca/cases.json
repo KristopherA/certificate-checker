@@ -1,0 +1,249 @@
+{
+  "schema": 1,
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "root": "root.pem",
+  "intermediate": "intermediate.pem",
+  "note": "TEST-ONLY keys (keys/). Re-running reuses them; deleting keys/ means re-recording shared/golden.",
+  "cases": [
+    {
+      "name": "good",
+      "description": "Valid leaf + intermediate, serverAuth, SAN matches, 396-day lifetime",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "good.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "misordered",
+      "description": "Same leaf, bundle lists the intermediate first",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "good.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "leaf-only",
+      "description": "Leaf without its intermediate",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "good.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "wrong-host",
+      "description": "Valid leaf checked against a name it does not cover",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "other.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "key-mismatch",
+      "description": "Leaf + intermediate with an unrelated private key",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "good.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "expired",
+      "description": "Leaf expired before the pinned time",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "expired.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "not-yet-valid",
+      "description": "Leaf notBefore after the pinned time",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "future.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "expiring-soon",
+      "description": "Leaf expires 15 days after the pinned time (warn window is 30 days)",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "soon.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "weak-rsa1024",
+      "description": "1024-bit RSA leaf key",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "weak.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "sha1-signature",
+      "description": "Leaf signed with SHA-1",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "sha1.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "no-san",
+      "description": "Leaf with no SAN; host only in the CN",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "nosan.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "client-eku-only",
+      "description": "clientAuth-only EKU checked as a TLS server",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "client.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "client-purpose",
+      "description": "clientAuth-only EKU checked as a TLS client",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "client.example.test",
+      "purpose": "client"
+    },
+    {
+      "name": "no-eku",
+      "description": "Leaf with no EKU extension",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "noeku.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "long-validity",
+      "description": "Private-CA leaf with an 826-day lifetime (over 398)",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "long.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "ec-p256",
+      "description": "ECDSA P-256 leaf",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "ec.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "wildcard",
+      "description": "Wildcard leaf checked against a covered name",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "a.wild.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "wildcard-too-deep",
+      "description": "Wildcard leaf checked against a two-label-deeper name",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "a.b.wild.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "ip-san",
+      "description": "Leaf with an IP SAN (RFC 5737), checked by IP",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "192.0.2.10",
+      "purpose": "server"
+    },
+    {
+      "name": "ip-only-san-cn-host",
+      "description": "SAN holds only an IP; the checked name is only in the CN (CN fallback must not apply)",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "ipsan-cn.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "email-only-san-cn-host",
+      "description": "SAN holds only an email address; the checked name is only in the CN",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "mailsan-cn.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "any-eku-only",
+      "description": "Leaf whose only EKU is anyExtendedKeyUsage",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "anyeku.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "ca-as-leaf",
+      "description": "Leaf with Basic Constraints CA:TRUE",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "calike.example.test",
+      "purpose": "server"
+    },
+    {
+      "name": "self-signed",
+      "description": "Self-signed leaf (appliance default style)",
+      "files": [
+        "chain.pem",
+        "key.pem"
+      ],
+      "hostname": "self.example.test",
+      "purpose": "server"
+    }
+  ]
+}
