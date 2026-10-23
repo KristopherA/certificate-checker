@@ -1,7 +1,7 @@
 import XCTest
 import CryptoKit
 
-final class WireGuardTests: XCTestCase {
+final class WireGuardTests: PinnedTestCase {
     func fx(_ n: String) -> URL { CertificateCheckerTests.fixtures.appendingPathComponent(n) }
     func privateKey(in file: String) throws -> String {
         let text = try String(contentsOf: fx(file))

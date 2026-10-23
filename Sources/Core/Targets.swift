@@ -155,7 +155,7 @@ public struct TargetStore {
         return try JSONDecoder().decode([Target].self, from: d)
     }
     /// Writes the current bytes to targets.json.bak-<timestamp>[-NNN] (0600, never overwriting) and returns it; nil when there is no file.
-    @discardableResult public func backup(now: Date = Date()) throws -> URL? {
+    @discardableResult public func backup(now: Date = Clock.now()) throws -> URL? {
         guard let data = try readRegular() else { return nil }
         let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyyMMdd-HHmmss"
         let base = url.lastPathComponent + ".bak-" + f.string(from: now), dir = url.deletingLastPathComponent()
@@ -172,8 +172,16 @@ public struct TargetStore {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         _ = try readRegular()
         let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try enc.encode(targets).write(to: url, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        // Write a 0600 temp file (never following links, never reusing a name) and rename it over targets.json,
+        // so the file never exists with umask permissions.
+        let data = try enc.encode(targets)
+        let tmp = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).tmp-\(UUID().uuidString)")
+        let fd = open(tmp.path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+        guard fd >= 0 else { throw CheckError.message("Could not create a temporary file next to \(url.lastPathComponent).") }
+        do {
+            let h = FileHandle(fileDescriptor: fd, closeOnDealloc: true); try h.write(contentsOf: data); try h.synchronize(); try h.close()
+            guard rename(tmp.path, url.path) == 0 else { throw CheckError.message("Could not replace \(url.lastPathComponent).") }
+        } catch { unlink(tmp.path); throw error }
     }
 }
 

@@ -14,7 +14,7 @@ public enum SMIME {
         guard let b = bits, n / 8 < b.count else { return false }
         return b[n / 8] & (0x80 >> UInt8(n % 8)) != 0
     }
-    public static func inspect(_ leaf: Certificate, address: String? = nil, now: Date = Date(), warnDays: Int = 30) -> [Finding] {
+    public static func inspect(_ leaf: Certificate, address: String? = nil, now: Date = Clock.now(), warnDays: Int = 30) -> [Finding] {
         func f(_ id: String, _ s: Severity, _ t: Topic, _ title: String, _ d: String = "") -> Finding { Finding(id, s, t, title, d, kind: "smime") }
         var out: [Finding] = []
         // Usage

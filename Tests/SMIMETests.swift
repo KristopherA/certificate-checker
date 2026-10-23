@@ -1,6 +1,6 @@
 import XCTest
 /// S/MIME (0.9.0). SYNTHETIC-smime-* fixtures from make-smime-fixtures.sh; offline only.
-final class SMIMETests: XCTestCase {
+final class SMIMETests: PinnedTestCase {
     func c(_ n: String) throws -> Certificate {
         let u = CertificateCheckerTests.fixtures.appendingPathComponent("SYNTHETIC-smime-\(n).pem")
         return try Certificate(der: PEM.blocks(String(decoding: try Data(contentsOf: u), as: UTF8.self))[0].der)

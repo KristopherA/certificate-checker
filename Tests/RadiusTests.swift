@@ -1,6 +1,6 @@
 import XCTest
 
-final class RadiusTests: XCTestCase {
+final class RadiusTests: PinnedTestCase {
     func fx(_ n: String) -> URL { CertificateCheckerTests.fixtures.appendingPathComponent(n) }
     func sev(_ f: [Finding], _ id: String) -> Severity? { f.first { $0.id == id }?.severity }
 

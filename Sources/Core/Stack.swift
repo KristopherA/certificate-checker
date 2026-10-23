@@ -45,7 +45,7 @@ public enum Stack {
     /// The macOS "trust" failure is downgraded to info ONLY when the untrusted root is the sole problem: the chain verifies
     /// to the supplied CA (signatures), every certificate on that path is inside its validity dates, and the leaf covers
     /// `hostname` by SAN. Expiry, a bad signature or a hostname mismatch therefore still fail.
-    public static func suppliedCA(_ findings: [Finding], chain: [Certificate], ca: [Certificate], hostname: String?, now: Date = Date()) -> [Finding] {
+    public static func suppliedCA(_ findings: [Finding], chain: [Certificate], ca: [Certificate], hostname: String?, now: Date = Clock.now()) -> [Finding] {
         guard let leaf = chain.first, !ca.isEmpty else { return findings }
         var out = findings + nonCAWarnings(ca)
         let v = verifies(leaf: leaf, intermediates: Array(chain.dropFirst()), ca: ca, now: now)
@@ -145,7 +145,7 @@ public enum MTLSPair {
         public static let munki = Context(server: "The Munki repo web server", verifier: "The repo web server", keySetting: "ClientKeyPath in ManagedInstalls (or --key)", pairSettings: "ClientCertificatePath and ClientKeyPath", caSetting: "the CA the repo web server trusts for clients, or SoftwareRepoCACertificate")
     }
     /// Reads certificate, key and CA files (≤ 2 MB each). Keys are compared in memory and never printed.
-    public static func inspect(_ urls: [URL], ca caURLs: [URL], now: Date = Date(), context: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
+    public static func inspect(_ urls: [URL], ca caURLs: [URL], now: Date = Clock.now(), context: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
         func read(_ list: [URL], _ pre: inout [Finding]) -> [(String, Data)] {
             list.compactMap { url in
                 do {
@@ -162,7 +162,7 @@ public enum MTLSPair {
         return (r.chain, Stack.sort(pre + r.findings))
     }
 
-    public static func inspect(data items: [(name: String, data: Data)], ca caItems: [(name: String, data: Data)], now: Date = Date(), context: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
+    public static func inspect(data items: [(name: String, data: Data)], ca caItems: [(name: String, data: Data)], now: Date = Clock.now(), context: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
         var rep = FileReport(), caRep = FileReport(); var notes: [Finding] = []
         for (name, data) in items {
             do { try FileCheck.load(name: name, data: data, password: nil, into: &rep) }
@@ -178,7 +178,7 @@ public enum MTLSPair {
         return (r.chain, Stack.sort(notes + r.findings))
     }
 
-    public static func evaluate(certs: [Certificate], keys: [PublicKeyInfo], ca: [Certificate], now: Date = Date(), context c: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
+    public static func evaluate(certs: [Certificate], keys: [PublicKeyInfo], ca: [Certificate], now: Date = Clock.now(), context c: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
         // The client certificate is the first non-CA certificate; any others are intermediates.
         guard let leaf = certs.first(where: { $0.isCA != true }) ?? certs.first else { return ([], [Stack.f("mtls-none", .fail, "mtls-client", "No client certificate found")]) }
         let who = "Client certificate \(leaf.displayName)"

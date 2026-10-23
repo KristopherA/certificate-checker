@@ -1,6 +1,6 @@
 import XCTest
 /// Code signing (0.9.0). Uses system binaries and a temporary ad-hoc signed copy; pkgutil output is parsed from text.
-final class CodeSignTests: XCTestCase {
+final class CodeSignTests: PinnedTestCase {
     func sev(_ f: [Finding], _ id: String) -> Severity? { f.first { $0.id == id }?.severity }
     func testAppleSignedBinary() throws {
         let i = try CodeSign.info(URL(fileURLWithPath: "/bin/ls"))
@@ -24,11 +24,11 @@ final class CodeSignTests: XCTestCase {
         XCTAssertEqual(sev(CodeSign.inspect(try CodeSign.info(d)), "cs-signed"), .fail)
     }
     func testPkgutilParse() {
-        let ok = CodeSign.parsePkgutil("Package \"x.pkg\":\n   Status: signed by a developer certificate issued by Apple for distribution\n   Notarization: trusted by the Apple notary service\n   Signed with a trusted timestamp on: 2026-01-02 03:04:05 +0000\n")
+        let ok = CodeSign.parsePkgutil("Package \"package.pkg\":\n   Status: signed by a developer certificate issued by Apple for distribution\n   Notarization: trusted by the Apple notary service\n   Signed with a trusted timestamp on: 2026-01-02 03:04:05 +0000\n")
         XCTAssertTrue(ok.valid); XCTAssertNotNil(ok.timestamp)
-        let none = CodeSign.parsePkgutil("Package \"x.pkg\":\n   Status: no signature\n")
+        let none = CodeSign.parsePkgutil("Package \"package.pkg\":\n   Status: no signature\n")
         XCTAssertFalse(none.signed); XCTAssertEqual(sev(CodeSign.inspect(none), "cs-signed"), .fail)
-        let bad = CodeSign.parsePkgutil("Package \"x.pkg\":\n   Status: signed by a certificate that has since expired\n")
+        let bad = CodeSign.parsePkgutil("Package \"package.pkg\":\n   Status: signed by a certificate that has since expired\n")
         XCTAssertTrue(bad.signed); XCTAssertFalse(bad.valid); XCTAssertEqual(sev(CodeSign.inspect(bad), "cs-valid"), .fail)
     }
 }

@@ -112,7 +112,7 @@ public enum Remote {
     /// Likely the self-signed certificate Windows generates for RDP (Remote Desktop store): self-issued, not a CA.
     public static func isDefaultSelfSigned(_ leaf: Certificate) -> Bool { leaf.isSelfIssued && leaf.isCA != true }
 
-    public static func adjust(_ findings: [Finding], chain: [Certificate], target: Target, now: Date = Date()) -> [Finding] {
+    public static func adjust(_ findings: [Finding], chain: [Certificate], target: Target, now: Date = Clock.now()) -> [Finding] {
         guard let leaf = chain.first, target.service.isRemoteAdmin else { return findings }
         var out = findings
         func set(_ f: Finding) { if let i = out.firstIndex(where: { $0.id == f.id }) { out[i] = f } else { out.append(f) } }

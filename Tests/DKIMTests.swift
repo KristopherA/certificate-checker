@@ -1,6 +1,6 @@
 import XCTest
 /// DKIM (0.9.0). SYNTHETIC-dkim-* fixtures from make-dkim-fixtures.sh; offline, no DNS.
-final class DKIMTests: XCTestCase {
+final class DKIMTests: PinnedTestCase {
     func fx(_ n: String) -> URL { CertificateCheckerTests.fixtures.appendingPathComponent("SYNTHETIC-dkim-\(n)") }
     func sev(_ f: [Finding], _ id: String) -> Severity? { f.first { $0.id == id }?.severity }
 

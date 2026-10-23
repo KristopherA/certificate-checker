@@ -2,7 +2,7 @@
 
 **Owner:** your macOS packaging / Apple Developer account administrators
 **Updated:** 21 October 2026
-**Application:** Certificate Checker 0.9.0, macOS 14+, Apple Silicon and Intel. Bundle ID `tools.certificatechecker.desktop`, executable `Certificate Checker`, CLI `certificate-checker`.
+**Application:** Certificate Checker 0.9.1, macOS 14+, Apple Silicon and Intel. Bundle ID `tools.certificatechecker.desktop`, executable `Certificate Checker`, CLI `certificate-checker`.
 **Deliverable:** A signed, notarized installer that installs the app in `/Applications`.
 
 Replace the placeholders with your organisation's values. This document contains no identities, Team ID or notary credentials, and no signing or Apple submission has been done for this build.
@@ -19,7 +19,7 @@ You need a **Developer ID Application** identity for the app and CLI, and a **De
 ## 2. Prepare a release copy outside synced folders
 
 ```sh
-CC_VERSION='0.9.0'
+CC_VERSION='0.9.1'
 CC_APP_IDENTITY='Developer ID Application: REPLACE WITH EXACT ORGANISATION NAME (TEAMID)'
 CC_INSTALLER_IDENTITY='Developer ID Installer: REPLACE WITH EXACT ORGANISATION NAME (TEAMID)'
 CC_NOTARY_PROFILE='CertificateChecker-Notary'

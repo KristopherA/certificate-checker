@@ -40,7 +40,7 @@ public enum Vendor {
         return leaf.isSelfIssued && (cn == "localhost" || cn == "localhost.localdomain" || has(leaf, ["Internet Widgits Pty Ltd", "snakeoil"]))
     }
 
-    public static func adjust(_ findings: [Finding], chain: [Certificate], target: Target, tlsVersion: String?, now: Date = Date()) -> [Finding] {
+    public static func adjust(_ findings: [Finding], chain: [Certificate], target: Target, tlsVersion: String?, now: Date = Clock.now()) -> [Finding] {
         guard let leaf = chain.first, target.service.isVendor else { return findings }
         var out = findings
         func downgradeTrust(_ note: String) {
@@ -183,7 +183,7 @@ public enum Munki {
     }
 
     /// Validates the client certificate/key pair against the repo CA. Paths come from the plist or from overrides; files ≤ 2 MB, read in memory.
-    public static func inspect(_ m: MunkiSettings, cert: URL?, key: URL?, ca: URL?, now: Date = Date()) -> (chain: [Certificate], findings: [Finding]) {
+    public static func inspect(_ m: MunkiSettings, cert: URL?, key: URL?, ca: URL?, now: Date = Clock.now()) -> (chain: [Certificate], findings: [Finding]) {
         let certURL = cert ?? m.clientCertificatePath.map { URL(fileURLWithPath: $0) }
         let keyURL = key ?? m.clientKeyPath.map { URL(fileURLWithPath: $0) }
         let caURL = ca ?? m.caCertificate.map { URL(fileURLWithPath: $0) }

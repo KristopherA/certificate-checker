@@ -11,7 +11,11 @@ public enum CodeSign {
         public var timestamp: Date?
         public var chain: [Certificate] = []
         public var pkgStatus: String?
+        /// Installer packages: certificate names, expiry and SHA-256 from pkgutil's text (no DER is available).
+        public var pkgChain: [PkgCert] = []
+        public var notarized: Bool?
     }
+    public struct PkgCert: Equatable { public var name: String; public var expires: Date?; public var sha256: String }
 
     public static func info(_ u: URL) throws -> Info {
         var isDir: ObjCBool = false
@@ -40,11 +44,20 @@ public enum CodeSign {
     }
 
     /// pkgutil --check-signature (read-only). Its text output is parsed; certificate details beyond names and expiry are not available.
+    /// The package name pkgutil sees, and expects in its `Package "…":` header.
+    static let pkgLinkName = "package.pkg"
     static func pkg(_ u: URL) throws -> Info {
-        let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/pkgutil"); p.arguments = ["--check-signature", u.path]
+        // pkgutil echoes the path verbatim, so a crafted file name could inject lines. Run it on a fixed-name symlink
+        // in a private (0700) temporary folder, so nothing it prints comes from the real name.
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("cc-pkg-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let link = dir.appendingPathComponent(pkgLinkName)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: u.standardizedFileURL)
+        let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/pkgutil"); p.arguments = ["--check-signature", link.path]
         p.environment = ["LC_ALL": "C", "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
-        // stderr goes to the same pipe so a large error output cannot fill an undrained pipe and block pkgutil.
-        let pipe = Pipe(); p.standardOutput = pipe; p.standardError = pipe
+        // stderr is discarded: it is not trusted and is not parsed.
+        let pipe = Pipe(); p.standardOutput = pipe; p.standardError = FileHandle.nullDevice
         try p.run(); let data = pipe.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
         let text = String(decoding: data.prefix(1_000_000), as: UTF8.self)
         var i = parsePkgutil(text)
@@ -52,9 +65,37 @@ public enum CodeSign {
         if p.terminationStatus != 0 { i.valid = false; if i.validityError == nil { i.validityError = "pkgutil exited \(p.terminationStatus)" } }
         return i
     }
-    static func parsePkgutil(_ text: String) -> Info {
+    static func parsePkgutil(_ text: String, expectedName: String = pkgLinkName) -> Info {
         var out = Info()
-        for line in text.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) {
+        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX"); df.timeZone = TimeZone(identifier: "UTC"); df.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
+        var inChain = false, inFP = false, inPackage = false, seen: Set<String> = []
+        func spoofed(_ why: String) -> Info { var bad = Info(); bad.signed = true; bad.validityError = "Unexpected pkgutil output (\(why)); not trusted."; return bad }
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false).map({ $0.trimmingCharacters(in: .whitespaces) }) {
+            // Only lines after the single expected header are read.
+            if line.hasPrefix("Package \"") {
+                guard !inPackage, line == "Package \"\(expectedName)\":" else { return spoofed("second or unexpected Package header") }
+                inPackage = true; continue
+            }
+            guard inPackage else { continue }
+            for key in ["Status:", "Notarization:", "Signed with a trusted timestamp on:", "Certificate Chain:"] where line.hasPrefix(key) {
+                guard seen.insert(key).inserted else { return spoofed("\(key) appears twice") }
+            }
+            if line == "Certificate Chain:" { inChain = true; continue }
+            if inChain {
+                if let dot = line.firstIndex(of: "."), let n = Int(line[..<dot]), n == out.pkgChain.count + 1 {
+                    out.pkgChain.append(PkgCert(name: String(line[line.index(after: dot)...]).trimmingCharacters(in: .whitespaces), expires: nil, sha256: "")); inFP = false; continue
+                }
+                guard !out.pkgChain.isEmpty else { continue }
+                let last = out.pkgChain.count - 1
+                if line.hasPrefix("Expires:") { out.pkgChain[last].expires = df.date(from: String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)); inFP = false; continue }
+                if line == "SHA256 Fingerprint:" { inFP = true; continue }
+                if inFP, !line.isEmpty, line.allSatisfy({ $0.isHexDigit || $0 == " " }) {
+                    let hex = line.split(separator: " ").joined(separator: ":").uppercased()
+                    out.pkgChain[last].sha256 += (out.pkgChain[last].sha256.isEmpty ? "" : ":") + hex; continue
+                }
+                inFP = false; continue
+            }
+            if line.hasPrefix("Notarization:") { out.notarized = line.lowercased().contains("trusted by the apple notary") }
             if line.hasPrefix("Status:") {
                 let s = String(line.dropFirst(7)).trimmingCharacters(in: .whitespaces)
                 out.pkgStatus = s; out.signed = !s.lowercased().contains("no signature"); let low = s.lowercased()
@@ -62,16 +103,18 @@ public enum CodeSign {
                 if !out.valid { out.validityError = s }
             }
             if line.hasPrefix("Signed with a trusted timestamp on:") {
-                let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd HH:mm:ss Z"
-                out.timestamp = f.date(from: String(line.dropFirst(35)).trimmingCharacters(in: .whitespaces))
+                out.timestamp = df.date(from: String(line.dropFirst(35)).trimmingCharacters(in: .whitespaces))
             }
+        }
+        if let leaf = out.pkgChain.first?.name, let o = leaf.lastIndex(of: "("), let c = leaf.lastIndex(of: ")"), o < c {
+            let team = String(leaf[leaf.index(after: o)..<c]); if team.count == 10, team.allSatisfy({ $0.isLetter || $0.isNumber }) { out.teamID = team }
         }
         return out
     }
 
     /// SHA-256 of "Apple Root CA" (System Roots keychain).
     static let appleRootCASHA256 = "B0:B1:73:0E:CB:C7:FF:45:05:14:2C:49:F1:29:5E:6E:DA:6B:CA:ED:7E:2C:68:C5:BE:91:B5:A1:10:01:F0:24"
-    public static func inspect(_ i: Info, now: Date = Date(), warnDays: Int = 60) -> [Finding] {
+    public static func inspect(_ i: Info, now: Date = Clock.now(), warnDays: Int = 60) -> [Finding] {
         func f(_ id: String, _ s: Severity, _ t: Topic, _ title: String, _ d: String = "") -> Finding { Finding(id, s, t, title, d, kind: "codesign") }
         var out: [Finding] = []
         guard i.signed else { return [f("cs-signed", .fail, .general, "Not signed", "Gatekeeper blocks unsigned downloaded code.")] }
@@ -96,6 +139,19 @@ public enum CodeSign {
             if case .rsa(let b) = leaf.publicKey.algorithm, b < 2048 { out.append(f("cs-key", .fail, .weakKey, "RSA key is \(b) bits")) }
             if i.chain.contains(where: { $0.signatureIsWeak && !$0.isSelfIssued }) { out.append(f("cs-sig", .fail, .weakSignature, "Weak signature algorithm in the chain")) }
         }
+        if i.chain.isEmpty, let leaf = i.pkgChain.first {
+            if leaf.name.hasPrefix("Developer ID Installer") || leaf.name.hasPrefix("3rd Party Mac Developer Installer") || leaf.name.hasPrefix("Mac Installer Distribution") { out.append(f("cs-kind", .info, .eku, "Signed by \(leaf.name)")) }
+            else { out.append(f("cs-kind", .warning, .eku, "Signed by \(leaf.name)", "Packages given to other Macs should be signed with a Developer ID Installer certificate.")) }
+            if let e = leaf.expires {
+                let days = Int(e.timeIntervalSince(now) / 86_400)
+                if days < 0 {
+                    if let ts = i.timestamp, ts <= e { out.append(f("cs-expiry", .info, .expiry, "Certificate expired \(-days) days ago, signature timestamped", "The secure timestamp keeps the signature valid; re-sign with a current certificate for new builds.")) }
+                    else { out.append(f("cs-expiry", .fail, .expiry, "Certificate expired \(-days) days ago with no secure timestamp", "The signature is no longer trusted. Re-sign the package.")) }
+                } else if days < warnDays { out.append(f("cs-expiry", .warning, .expiry, "Certificate expires in \(days) days", "Renew before releasing new packages.")) }
+                else { out.append(f("cs-expiry", .pass, .expiry, "Certificate valid for \(days) more days")) }
+            }
+        }
+        if let n = i.notarized { out.append(f("cs-notarized", n ? .pass : .warning, .trust, n ? "Notarized by Apple" : "Not notarized", n ? "" : "Gatekeeper blocks un-notarized downloaded packages. Notarize with: xcrun notarytool submit PKG --wait")) }
         if !i.adHoc, !applePlatform, i.timestamp == nil { out.append(f("cs-timestamp", .warning, .general, "No secure timestamp", "The signature stops being trusted when the certificate expires.")) }
         return out
     }

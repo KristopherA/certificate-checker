@@ -35,7 +35,7 @@ public enum Appliance {
     /// PBS generates a self-signed certificate at install time.
     public static func isPBSDefault(_ leaf: Certificate) -> Bool { leaf.isSelfIssued && leaf.isCA != true }
 
-    public static func adjust(_ findings: [Finding], chain: [Certificate], target: Target, now: Date = Date()) -> [Finding] {
+    public static func adjust(_ findings: [Finding], chain: [Certificate], target: Target, now: Date = Clock.now()) -> [Finding] {
         guard let leaf = chain.first, target.service.isAppliance else { return findings }
         var out = findings
         func downgradeTrust(_ note: String, to sev: Severity = .warning) {

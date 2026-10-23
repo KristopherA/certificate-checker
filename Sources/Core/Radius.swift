@@ -8,7 +8,7 @@ public enum RadiusCheck {
     public static let appleMaxDays = 825
     static func f(_ id: String, _ s: Severity, _ kind: String, _ title: String, _ detail: String = "") -> Finding { Finding(id, s, .radius, title, detail, kind: kind) }
 
-    public static func inspect(_ urls: [URL], expectedName: String?, now: Date = Date()) -> (chain: [Certificate], findings: [Finding]) {
+    public static func inspect(_ urls: [URL], expectedName: String?, now: Date = Clock.now()) -> (chain: [Certificate], findings: [Finding]) {
         var items: [(String, Data)] = []; var pre: [Finding] = []
         for url in urls {
             do {
@@ -22,7 +22,7 @@ public enum RadiusCheck {
         return (r.chain, sort(pre + r.findings))
     }
 
-    public static func inspect(data items: [(name: String, data: Data)], expectedName: String?, now: Date = Date()) -> (chain: [Certificate], findings: [Finding]) {
+    public static func inspect(data items: [(name: String, data: Data)], expectedName: String?, now: Date = Clock.now()) -> (chain: [Certificate], findings: [Finding]) {
         var rep = FileReport(); var notes: [Finding] = []
         for (name, data) in items {
             do { try FileCheck.load(name: name, data: data, password: nil, into: &rep) }
@@ -36,7 +36,7 @@ public enum RadiusCheck {
     static func sort(_ f: [Finding]) -> [Finding] { f.sorted { $0.severity == $1.severity ? $0.id < $1.id : $0.severity > $1.severity } }
 
     /// `chain` must be leaf-first (Analysis.orderedChain or the order eapol_test received it).
-    public static func evaluate(chain: [Certificate], keys: [PublicKeyInfo] = [], expectedName: String?, now: Date = Date()) -> [Finding] {
+    public static func evaluate(chain: [Certificate], keys: [PublicKeyInfo] = [], expectedName: String?, now: Date = Clock.now()) -> [Finding] {
         guard let leaf = chain.first else { return [f("rad-none", .fail, "info", "No certificate found")] }
         var out: [Finding] = []
         let who = "RADIUS server certificate"
@@ -166,7 +166,7 @@ public enum RadiusProbe {
     }
 
     public static func run(host: String, port: Int = 1812, method: EAPMethod = .peap, expectedName: String?, secret: String,
-                           tool: URL? = RadiusProbe.locate(), now: Date = Date(), timeout: Int = RadiusProbe.timeoutSeconds, grace: Int = 5) -> RadiusProbeResult {
+                           tool: URL? = RadiusProbe.locate(), now: Date = Clock.now(), timeout: Int = RadiusProbe.timeoutSeconds, grace: Int = 5) -> RadiusProbeResult {
         var r = RadiusProbeResult()
         guard let tool else {
             r.skipped = true

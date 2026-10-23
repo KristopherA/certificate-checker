@@ -1,6 +1,6 @@
 import XCTest
 /// SSH host keys vs known_hosts (0.9.0). SYNTHETIC-ssh-* fixtures from make-ssh-fixtures.sh; offline, no connection.
-final class SSHHostKeyTests: XCTestCase {
+final class SSHHostKeyTests: PinnedTestCase {
     func txt(_ n: String) throws -> String { String(decoding: try Data(contentsOf: CertificateCheckerTests.fixtures.appendingPathComponent("SYNTHETIC-ssh-\(n)")), as: UTF8.self) }
     func keys(_ n: String) throws -> [SSHKey] { SSHHostKeys.parseHostKeys(try txt(n)) }
     func sev(_ f: [Finding], _ id: String) -> Severity? { f.first { $0.id == id }?.severity }
@@ -44,7 +44,7 @@ final class SSHHostKeyTests: XCTestCase {
     }
 }
 
-final class SSHHostKeyReviewTests: XCTestCase {
+final class SSHHostKeyReviewTests: PinnedTestCase {
     func testGlobIsLinearAndNonRecursive() {
         let pat = String(repeating: "*a", count: 2_000) + "*b", s = String(repeating: "a", count: 5_000)
         let t = Date(); XCTAssertFalse(SSHHostKeys.glob(pat, s)); XCTAssertLessThan(Date().timeIntervalSince(t), 5)

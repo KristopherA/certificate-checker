@@ -86,8 +86,8 @@ public enum SSHHostKeys {
         let p = Array(pattern), t = Array(s)
         var i = 0, j = 0, star = -1, mark = 0
         while j < t.count {
-            if i < p.count, p[i] == "?" || p[i] == t[j] { i += 1; j += 1 }
-            else if i < p.count, p[i] == "*" { star = i; mark = j; i += 1 }
+            if i < p.count, p[i] == "*" { star = i; mark = j; i += 1 }
+            else if i < p.count, p[i] == "?" || p[i] == t[j] { i += 1; j += 1 }
             else if star >= 0 { i = star + 1; mark += 1; j = mark }
             else { return false }
         }

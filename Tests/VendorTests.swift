@@ -1,6 +1,6 @@
 import XCTest
 /// Munki / FileMaker / Retrospect / HP EWS / Barracuda WAF (0.8.0) and review carry-overs. SYNTHETIC-* fixtures; live tests use the loopback fake server only.
-final class VendorTests: XCTestCase {
+final class VendorTests: PinnedTestCase {
     func fx(_ n: String) -> URL { CertificateCheckerTests.fixtures.appendingPathComponent(n) }
     func sev(_ f: [Finding], _ id: String) -> Severity? { f.first { $0.id == id }?.severity }
     func chain(_ n: String) throws -> [Certificate] { try PEM.blocks(String(decoding: try Data(contentsOf: fx(n)), as: UTF8.self)).map { try Certificate(der: $0.der) } }

@@ -1,6 +1,6 @@
 import XCTest
 /// 0.8.0 review round 3: targets.json file-type guards, backup pruning, strict service decode, HP-UX, DER/combined overrides.
-final class Round3Tests: XCTestCase {
+final class Round3Tests: PinnedTestCase {
     func fx(_ n: String) -> URL { CertificateCheckerTests.fixtures.appendingPathComponent(n) }
     var dirs: [URL] = []
     func tmp() throws -> URL {
@@ -86,7 +86,7 @@ final class Round3Tests: XCTestCase {
 }
 
 /// App commit/delete go through TargetLibrary.upsert/delete: save first, change `targets` only on success.
-final class TargetLibraryMutationTests: XCTestCase {
+final class TargetLibraryMutationTests: PinnedTestCase {
     func testUpsertAndDeleteLeaveTargetsUnchangedOnFailure() throws {
         let d = FileManager.default.temporaryDirectory.appendingPathComponent("lib-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: d, withIntermediateDirectories: true); defer { try? FileManager.default.removeItem(at: d) }

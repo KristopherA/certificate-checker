@@ -1,6 +1,6 @@
 import XCTest
 
-final class CertificateCheckerTests: XCTestCase {
+final class CertificateCheckerTests: PinnedTestCase {
     /// test.sh copies fixtures outside ~/Documents (the test runner has no Files & Folders permission there).
     static let fixtures = URL(fileURLWithPath: ProcessInfo.processInfo.environment["CC_FIXTURES"] ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures").path)
     func fx(_ name: String) -> URL { Self.fixtures.appendingPathComponent(name) }

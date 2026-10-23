@@ -10,10 +10,16 @@ public struct DKIMRecord: Equatable {
 }
 
 public enum DKIM {
-    /// Parses "v=DKIM1; k=rsa; p=MIIB…". Accepts the zone-file form with quotes and line breaks ("…" "…").
+    /// Strict: parses exactly one record, "v=DKIM1; k=rsa; p=MIIB…" or its quoted form ("…" "…"). Every tag must be
+    /// well formed and appear once; anything else throws. Use record(in:selector:) for zone-file excerpts.
     public static func parse(_ text: String) throws -> DKIMRecord {
+        let r = try zoneRecords(text)
+        guard r.count == 1 else { throw CheckError.message("Expected one record, found \(r.count). Use record(in:selector:) for zone excerpts.") }
+        return try parseValue(r[0].value)
+    }
+    /// Parses an unquoted record value into tags.
+    static func parseValue(_ text: String) throws -> DKIMRecord {
         var s = text
-        if s.contains("\"") { s = s.components(separatedBy: "\"").enumerated().filter { $0.offset % 2 == 1 }.map(\.element).joined() }
         s = s.filter { !$0.isWhitespace }
         guard s.count <= 8_192 else { throw CheckError.message("DKIM record is longer than 8 KB.") }
         var r = DKIMRecord()
@@ -72,14 +78,80 @@ public enum DKIM {
         guard let b = PEM.blocks(text).first(where: { $0.label.hasSuffix("PRIVATE KEY") }) else { throw CheckError.message("\(u.lastPathComponent) holds no PEM private key.") }
         return try PrivateKeyFacts.parse(label: b.label, der: b.der).publicKey
     }
-    /// Reads a record file (regular, at most 64 KB).
-    public static func recordFile(_ u: URL) throws -> DKIMRecord {
+    /// Reads a record file (regular, at most 64 KB). Accepts a bare record, or zone-file lines with `;` comments,
+    /// parentheses, quoted strings and \X / \DDD escapes. A file with several DKIM records needs `selector`.
+    public static func recordFile(_ u: URL, selector: String? = nil) throws -> DKIMRecord {
         let a = try FileManager.default.attributesOfItem(atPath: u.path)
         guard (a[.type] as? FileAttributeType) == .typeRegular, ((a[.size] as? NSNumber)?.intValue ?? 0) <= 65_536 else { throw CheckError.message("\(u.lastPathComponent): not a regular file of at most 64 KB.") }
-        var t = String(decoding: try Data(contentsOf: u), as: UTF8.self)
-        // Zone-file lines: keep only the parenthesised/quoted value.
-        if let o = t.firstIndex(of: "("), let c = t.lastIndex(of: ")"), o < c { t = String(t[t.index(after: o)..<c]) }
-        else if !t.contains("\""), let v = t.range(of: "v=DKIM1") ?? t.range(of: "p=") { t = String(t[v.lowerBound...]) }
-        return try parse(t)
+        return try record(in: String(decoding: try Data(contentsOf: u), as: UTF8.self), selector: selector)
+    }
+
+    public struct ZoneRecord: Equatable { public var owner: String?; public var value: String
+        /// "sel" from "sel._domainkey.example.com." (nil when the owner is missing or not a DKIM name).
+        public var selector: String? { owner.flatMap { o in o.lowercased().range(of: "._domainkey").map { String(o[..<$0.lowerBound]).lowercased() } } }
+    }
+
+    public static func record(in text: String, selector: String? = nil) throws -> DKIMRecord {
+        var t = text
+        // A bare record in a file may follow a label or notes; start at the record itself.
+        if !t.contains("\""), let v = t.range(of: "v=DKIM1") ?? t.range(of: "p=") { t = String(t[v.lowerBound...]) }
+        let all = try zoneRecords(t)
+        var dkim = all.filter { isDKIM($0.value) }
+        if let sel = selector?.lowercased() {
+            dkim = dkim.filter { $0.selector == sel }
+            guard !dkim.isEmpty else { throw CheckError.message("No DKIM record for selector \(sel). Found: \(selectorList(all)).") }
+        }
+        guard let first = dkim.first else { throw CheckError.message("No DKIM record (v=DKIM1 or p=) found.") }
+        guard dkim.count == 1 else { throw CheckError.message("Found \(dkim.count) DKIM records (selectors: \(selectorList(dkim))). Pass --selector NAME.") }
+        return try parseValue(first.value)
+    }
+    static func selectorList(_ r: [ZoneRecord]) -> String { let s = r.compactMap(\.selector); return s.isEmpty ? "none named" : s.joined(separator: ", ") }
+
+    /// Splits text into TXT records. Without any quote the whole text is one bare record.
+    /// Throws on an unterminated quote or a \\DDD escape above 255. Quoted strings that belong to a
+    /// following non-TXT record (CAA, SPF-type RRs, …) are not added to the TXT record before it.
+    static func zoneRecords(_ text: String) throws -> [ZoneRecord] {
+        guard text.contains("\"") else { return [ZoneRecord(owner: nil, value: text)] }
+        var out: [ZoneRecord] = [], depth = 0, current: ZoneRecord?, ignoring = false
+        for (ln, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init).enumerated() {
+            var strings: [String] = [], bare = "", inQ = false, buf = "", i = 0
+            let chars = Array(raw), depthAtStart = depth
+            while i < chars.count {
+                let c = chars[i]
+                if inQ {
+                    if c == "\\", i + 1 < chars.count {
+                        if i + 3 < chars.count, chars[(i + 1)...(i + 3)].allSatisfy({ $0.isASCII && $0.isNumber }) {
+                            let n = Int(String(chars[(i + 1)...(i + 3)]))!
+                            guard n < 256 else { throw CheckError.message("Line \(ln + 1): escape \\\(n) is above 255.") }
+                            buf.append(Character(UnicodeScalar(UInt8(n)))); i += 4; continue
+                        }
+                        buf.append(chars[i + 1]); i += 2; continue
+                    }
+                    if c == "\"" { inQ = false; strings.append(buf); buf = "" } else { buf.append(c) }
+                } else {
+                    if c == ";" { break }                       // zone-file comment
+                    if c == "\"" { inQ = true } else if c == "(" { depth += 1 } else if c == ")" { depth = max(0, depth - 1) } else { bare.append(c) }
+                }
+                i += 1
+            }
+            guard !inQ else { throw CheckError.message("Line \(ln + 1): unterminated quoted string.") }
+            let tokens = bare.split(whereSeparator: \.isWhitespace).map(String.init)
+            if tokens.contains(where: { $0.uppercased() == "TXT" }) {
+                if let c = current { out.append(c) }
+                current = ZoneRecord(owner: raw.first.map { !$0.isWhitespace } == true ? tokens.first : nil, value: ""); ignoring = false
+            } else if depthAtStart == 0, !tokens.isEmpty {
+                // Another resource record (or stray text) starts here: close the TXT record and skip its strings.
+                if let c = current { out.append(c) }; current = nil; ignoring = true
+            } else if current == nil, !ignoring, out.isEmpty, !strings.isEmpty { current = ZoneRecord(owner: nil, value: "") }
+            if !ignoring { current?.value += strings.joined() }
+        }
+        if let c = current { out.append(c) }
+        return out
+    }
+    /// A DKIM key record starts with v=DKIM1, or has no v= tag and has p= (RFC 6376 §3.6.1). DMARC, SPF etc. do not count.
+    static func isDKIM(_ value: String) -> Bool {
+        let v = value.filter { !$0.isWhitespace }
+        let keys = v.split(separator: ";").compactMap { $0.split(separator: "=", maxSplits: 1).first.map { $0.lowercased() } }
+        return v.hasPrefix("v=DKIM1") || (!keys.contains("v") && keys.contains("p"))
     }
 }

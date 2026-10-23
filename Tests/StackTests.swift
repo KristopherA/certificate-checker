@@ -1,7 +1,7 @@
 import XCTest
 
 /// Docker registry / Logstash Beats / Elasticsearch / Beats client mTLS pair (0.7.0). SYNTHETIC-* fixtures; live tests use the loopback fake server only.
-final class StackTests: XCTestCase {
+final class StackTests: PinnedTestCase {
     func fx(_ n: String) -> URL { CertificateCheckerTests.fixtures.appendingPathComponent(n) }
     func sev(_ f: [Finding], _ id: String) -> Severity? { f.first { $0.id == id }?.severity }
     func chain(_ n: String) throws -> [Certificate] { try PEM.blocks(String(decoding: try Data(contentsOf: fx(n)), as: UTF8.self)).map { try Certificate(der: $0.der) } }

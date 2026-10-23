@@ -47,7 +47,7 @@ public enum Analysis {
         return chain
     }
 
-    public static func evaluate(certificates certs: [Certificate], hostname: String?, purpose: Purpose, keys: [PublicKeyInfo] = [], requests: [CertificateRequest] = [], now: Date = Date()) -> [Finding] {
+    public static func evaluate(certificates certs: [Certificate], hostname: String?, purpose: Purpose, keys: [PublicKeyInfo] = [], requests: [CertificateRequest] = [], now: Date = Clock.now()) -> [Finding] {
         var out: [Finding] = []
         guard !certs.isEmpty else {
             if requests.isEmpty && keys.isEmpty { out.append(Finding("none", .fail, .general, "No certificate found", "The input contained no readable PEM, DER, PKCS#7 or PFX certificate.")) }
@@ -174,7 +174,7 @@ extension String { func ifEmpty(_ s: String) -> String { isEmpty ? s : self } }
 public enum Trust {
     public struct Result: Equatable { public let trusted: Bool; public let message: String }
     /// Evaluates with the macOS trust store. Network fetching (AIA/OCSP/CRL) is disabled so offline checks contact nothing.
-    public static func evaluate(_ chain: [Certificate], hostname: String?, purpose: Purpose, allowNetwork: Bool = false) -> Result {
+    public static func evaluate(_ chain: [Certificate], hostname: String?, purpose: Purpose, allowNetwork: Bool = false, now: Date = Clock.now()) -> Result {
         let secCerts = chain.compactMap { SecCertificateCreateWithData(nil, Data($0.der) as CFData) }
         guard !secCerts.isEmpty else { return Result(trusted: false, message: "No certificate could be loaded by macOS.") }
         let host = hostname?.isEmpty == false ? hostname : nil
@@ -182,6 +182,7 @@ public enum Trust {
         var trust: SecTrust?
         guard SecTrustCreateWithCertificates(secCerts as CFArray, policy, &trust) == errSecSuccess, let trust else { return Result(trusted: false, message: "Trust object could not be created.") }
         SecTrustSetNetworkFetchAllowed(trust, allowNetwork)
+        SecTrustSetVerifyDate(trust, now as CFDate)
         var error: CFError?
         let ok = SecTrustEvaluateWithError(trust, &error)
         return Result(trusted: ok, message: ok ? "Trusted by this Mac's trust settings" : ((error as Error?)?.localizedDescription ?? "Not trusted"))

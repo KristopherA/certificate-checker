@@ -27,7 +27,7 @@ import Foundation
                           (--ca: the CA file clients use, e.g. ssl.certificate_authorities; the chain is checked against it offline)
       certificate-checker mtls-pair CERT KEY [MORE...] [--ca FILE]   (Beats client certificate + key: key match, clientAuth EKU, chain to CA; offline)
       certificate-checker smime FILE [--address ADDR]   (S/MIME certificate usage, address, expiry and strength; offline, PEM or DER)
-      certificate-checker dkim RECORD-FILE [--key FILE]   (DKIM TXT record: key type, strength, sha1, t=y; --key checks the signing key matches; offline, no DNS query)
+      certificate-checker dkim RECORD-FILE [--key FILE] [--selector NAME] (DKIM TXT record: key type, strength, sha1, t=y; --key checks the signing key matches; offline, no DNS query)
       certificate-checker codesign PATH   (.app, binary or .pkg: signature validity, certificate kind and expiry, timestamp, Hardened Runtime; read-only, offline)
       certificate-checker ssh-hostkeys KEYS-FILE [--known-hosts FILE --host NAME [--port 22]]
                       (ssh_host_*_key.pub or saved ssh-keyscan output: weak algorithms, and match against known_hosts incl. hashed entries; offline, no connection)
@@ -134,14 +134,16 @@ import Foundation
             do { i = try CodeSign.info(URL(fileURLWithPath: args[0])) } catch { fputs("\(error.localizedDescription)\n", stderr); exit(2) }
             if let id = i.identifier { print("Identifier: \(id)") }
             for (n, c) in i.chain.enumerated() { print("#\(n + 1) \(c.subject.text) · expires \(Analysis.fmt(c.notAfter))") }
+            for (n, c) in i.pkgChain.enumerated() { print("#\(n + 1) \(c.name)\(c.expires.map { " · expires \(Analysis.fmt($0))" } ?? "")") }
             let f = CodeSign.inspect(i)
             printFindings(f); exit(f.contains { $0.severity == .fail } ? 1 : 0)
         }
         if cmd == "dkim" {
             let key = option(&args, "--key").map { URL(fileURLWithPath: $0) }
+            let selector = option(&args, "--selector")
             guard args.count == 1, !args[0].hasPrefix("--") else { print(usage); exit(2) }
             let r: DKIMRecord, pk: PublicKeyInfo?
-            do { r = try DKIM.recordFile(URL(fileURLWithPath: args[0])); pk = try key.map { try DKIM.privateKeyPublicHalf($0) } }
+            do { r = try DKIM.recordFile(URL(fileURLWithPath: args[0]), selector: selector); pk = try key.map { try DKIM.privateKeyPublicHalf($0) } }
             catch { fputs("\(error.localizedDescription)\n", stderr); exit(2) }
             print("k=\(r.keyType)\(r.publicKey.map { " · \($0.algorithm.description)" } ?? "")")
             let f = DKIM.inspect(r, privateKey: pk)

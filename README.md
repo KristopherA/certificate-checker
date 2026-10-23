@@ -299,6 +299,16 @@ New **Services & devices** section and CLI commands (`munki`, `munki-repo`, `fms
 
 **Untested:** vendor default-certificate detection and behaviour were built from documentation and SYNTHETIC fixtures only (loopback); no probes were made against real Munki, FileMaker, Retrospect, HP or Barracuda products.
 
+## 0.9.1: review follow-ups
+
+- `codesign` on a `.pkg` now reads pkgutil's certificate chain: signer name, Team ID, expiry, SHA-256 and notarization status.
+- `dkim` accepts zone-file excerpts with `;` comments, escapes and several records. Use `--selector NAME` to pick one.
+- `targets.json` permissions are set through a descriptor that does not follow symlinks.
+- The tests use a fixed date, so they keep passing after the synthetic fixtures expire.
+- pkgutil runs on a fixed-name link in a private folder, so a crafted package file name can't add fake lines to its output. Only lines after the `Package` header are read, and repeated lines are rejected.
+- `dkim` counts a record only if it starts with `v=DKIM1`, or has no `v=` tag but has `p=`, so DMARC records are skipped. It rejects bad escapes and unterminated quotes.
+- `targets.json` is written as a 0600 temporary file and then renamed into place.
+
 ## 0.9.0: S/MIME, DKIM, code signing, SSH host keys
 
 All four are offline, make no network connection, and are CLI only in this release (not yet in the app).
@@ -312,7 +322,7 @@ Also: targets.json is opened without following symlinks and a symlinked parent f
 
 Untested against real systems: all four checks were built and tested with SYNTHETIC fixtures (and macOS system binaries for code signing).
 
-**Release coverage (0.9.0):** live probes against real hosts were not run for this release; test coverage is the synthetic fixtures and the loopback server only.
+**Release coverage (0.9.1):** live probes against real hosts were not run for this release; test coverage is the synthetic fixtures and the loopback server only.
 
 ## License
 

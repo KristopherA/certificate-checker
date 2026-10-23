@@ -1,6 +1,6 @@
 import XCTest
 
-final class IPsecTests: XCTestCase {
+final class IPsecTests: PinnedTestCase {
     func fx(_ n: String) -> URL { CertificateCheckerTests.fixtures.appendingPathComponent(n) }
     func d(_ n: String) throws -> Data { try Data(contentsOf: fx(n)) }
     func run(_ files: [String], id: String? = nil) throws -> IPsecReport {
@@ -179,7 +179,7 @@ final class IPsecTests: XCTestCase {
         var ca = try Certificate(der: PEM.blocks(String(contentsOf: fx("ipsec-ca.crt"))).first!.der)
         try ca.apply(extension: DER.parse([0x30, 0x0F, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x04, 0x08, 0x30, 0x06, 0x01, 0x01, 0xFF, 0x02, 0x01, 0xFF]))
         XCTAssertTrue(ca.basicConstraintsMalformed); XCTAssertNil(ca.pathLen); XCTAssertEqual(ca.isCA, true)
-        let f = IPsecCheck.evaluate(ca: IPsecEntry(label: "CA", cert: ca, refid: nil, ownKey: nil), index: 0, now: Date())
+        let f = IPsecCheck.evaluate(ca: IPsecEntry(label: "CA", cert: ca, refid: nil, ownKey: nil), index: 0, now: Clock.now())
         XCTAssertEqual(f.first { $0.id == "ca0-bc-bad" }?.severity, .fail)
     }
     func testSelfIssuedIntermediateNotCountedForPathLen() throws {
@@ -195,7 +195,7 @@ final class IPsecTests: XCTestCase {
         XCTAssertFalse(ChainCheck.isSelfSigned(roll), "rollover: self-issued, AKI ≠ SKI")
         let ch = ChainCheck.chain(for: leaf, pool: [root, roll])
         XCTAssertEqual(ch.map(\.sha256), [leaf, roll, root].map(\.sha256))
-        XCTAssertTrue(ChainCheck.verify(ch, now: Date()).ok, ChainCheck.verify(ch, now: Date()).message)
+        XCTAssertTrue(ChainCheck.verify(ch, now: Clock.now()).ok, ChainCheck.verify(ch, now: Clock.now()).message)
         let r = try run(["ipsec-akileaf.crt", "ipsec-akiroll.crt", "ipsec-akiroot.crt"])
         XCTAssertEqual(sev(r, "srv0-chain"), .pass, "\(r.findings.filter { $0.id.hasPrefix("srv0-chain") }.map(\.detail))")
     }

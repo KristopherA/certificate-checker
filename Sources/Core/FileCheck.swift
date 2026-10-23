@@ -17,7 +17,7 @@ public enum FileCheck {
     public static let maxFileSize = 2 * 1024 * 1024
 
     /// Inspect files. `password` is used only for PFX/P12 and is not retained.
-    public static func inspect(_ urls: [URL], hostname: String?, purpose: Purpose, password: String? = nil, now: Date = Date()) -> FileReport {
+    public static func inspect(_ urls: [URL], hostname: String?, purpose: Purpose, password: String? = nil, now: Date = Clock.now()) -> FileReport {
         var items: [(String, Data)] = []
         var report = FileReport()
         for url in urls {
@@ -34,7 +34,7 @@ public enum FileCheck {
         return r
     }
 
-    public static func inspect(data items: [(name: String, data: Data)], hostname: String?, purpose: Purpose, password: String? = nil, now: Date = Date()) -> FileReport {
+    public static func inspect(data items: [(name: String, data: Data)], hostname: String?, purpose: Purpose, password: String? = nil, now: Date = Clock.now()) -> FileReport {
         var r = FileReport()
         for (name, data) in items {
             r.sources.append(name)

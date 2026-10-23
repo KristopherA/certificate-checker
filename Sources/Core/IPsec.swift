@@ -100,7 +100,7 @@ public enum IPsecCheck {
 
     static func f(_ id: String, _ s: Severity, _ kind: String, _ title: String, _ detail: String = "") -> Finding { Finding(id, s, .ipsec, title, detail, kind: kind) }
 
-    public static func inspect(_ urls: [URL], expectedIdentifier: String? = nil, now: Date = Date()) -> IPsecReport {
+    public static func inspect(_ urls: [URL], expectedIdentifier: String? = nil, now: Date = Clock.now()) -> IPsecReport {
         var items: [(String, Data)] = []; var pre: [Finding] = []
         for url in urls {
             do {
@@ -115,7 +115,7 @@ public enum IPsecCheck {
         return r
     }
 
-    public static func inspect(data items: [(name: String, data: Data)], expectedIdentifier: String? = nil, now: Date = Date()) -> IPsecReport {
+    public static func inspect(data items: [(name: String, data: Data)], expectedIdentifier: String? = nil, now: Date = Clock.now()) -> IPsecReport {
         var l = IPsecParse.Loaded(); var r = IPsecReport()
         for (name, data) in items {
             r.sources.append(name)
