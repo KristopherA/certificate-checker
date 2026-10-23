@@ -126,6 +126,57 @@ struct TargetStatus { var result: ProbeResult?; var running = false }
             pairFindings = r.findings; pairChain = r.chain
         }
     }
+    // Services & devices (FileMaker, Retrospect, HP printer EWS, Barracuda WAF, Munki repo) and Munki ManagedInstalls offline
+    @Published var vnd = VendorForm()
+    @Published var vndRunning = false
+    @Published var vndResult: ProbeResult?
+    @Published var vndTarget: Target?
+    @Published var munkiPlist: URL?
+    @Published var munkiOverrides: [URL] = []
+    @Published var munkiCA: URL?
+    @Published var munkiProbe = false
+    @Published var munkiRunning = false
+    @Published var munkiFindings: [Finding]?
+    @Published var munkiChain: [Certificate] = []
+    func probeVendor() {
+        let t = vnd.target
+        do { try t.validate() } catch { message = error.localizedDescription; return }
+        vndRunning = true; vndTarget = t; vndResult = nil
+        Task { let r = await Probe.run(t); vndResult = r; vndRunning = false }
+    }
+    func addVendorTarget() { var t = vnd.target; t.name = "\(vnd.service.rawValue) \(t.host)"; if commit(t) { section = 1 } }
+    func checkMunki() {
+        guard let plist = munkiPlist else { return }
+        let files = munkiOverrides, ca = munkiCA, probe = munkiProbe
+        munkiRunning = true; munkiFindings = nil
+        Task {
+            let r: (chain: [Certificate], findings: [Finding]) = await Task.detached {
+                do {
+                    let s = try Munki.load(plist)
+                    // Overrides are sorted by content (PEM private key vs certificate), not by panel order.
+                    let o = try Munki.classifyOverrides(files)
+                    return Munki.inspect(s, cert: o.cert, key: o.key, ca: ca)
+                } catch { return ([], [Finding("munki-plist", .fail, .vendor, "Could not read \(plist.lastPathComponent)", error.localizedDescription)]) }
+            }.value
+            var findings = r.findings
+            if probe {
+                let loaded: Result<MunkiSettings, Error> = Result { try Munki.load(plist) }
+                switch loaded {
+                case .failure(let e): findings.append(Finding("munki-plist-read", .fail, .vendor, "Could not re-read \(plist.lastPathComponent) for the repo probe", e.localizedDescription))
+                case .success(let s):
+                if let t = s.repoTarget {
+                    var p = await Probe.run(t)
+                    if let caURL = ca ?? s.caCertificate.map({ URL(fileURLWithPath: $0) }), !p.chain.isEmpty {
+                        do { p.findings = Stack.suppliedCA(p.findings, chain: p.chain, ca: try Stack.loadCA([caURL]), hostname: t.verifyName) }
+                        catch { p.findings.append(Finding("munki-ca-read", .fail, .vendor, "Could not read SoftwareRepoCACertificate", error.localizedDescription)) }
+                    }
+                    findings += p.findings.map { var g = $0; g.title = "Repo: " + g.title; return g }
+                } else { findings.append(Finding("munki-probe", .info, .vendor, "Repo not probed", "SoftwareRepoURL is not an https:// URL with a host.")) }
+            }
+            }
+            munkiFindings = findings; munkiChain = r.chain; munkiRunning = false
+        }
+    }
     func addStackTarget() { var t = stk.target; t.name = "\(stk.service.rawValue) \(t.host)"; if commit(t) { section = 1 } }
     func addRemoteTarget() { var t = rem.target; t.name = "\(rem.service.rawValue) \(t.host)"; if commit(t) { section = 1 } }
     // Targets
@@ -134,10 +185,11 @@ struct TargetStatus { var result: ProbeResult?; var running = false }
     @Published var selected: UUID?
     @Published var editing: Target?
     @Published var message: String?
-    let store = TargetStore()
+    var library = TargetLibrary()
+    var targetsLoadError: String? { library.loadError }
     static var pfxSupported: Bool { if #available(macOS 15.0, *) { return true } else { return false } }
 
-    init() { do { targets = try store.load() } catch { message = "Saved targets could not be read: \(error.localizedDescription)" } }
+    init() { targets = library.targets; if let e = library.loadError { message = e } }
 
     func chooseFiles() {
         let panel = NSOpenPanel(); panel.allowsMultipleSelection = true; panel.canChooseDirectories = false
@@ -154,15 +206,23 @@ struct TargetStatus { var result: ProbeResult?; var running = false }
             report = r
         }
     }
-    func save() { do { try store.save(targets) } catch { message = error.localizedDescription } }
+    func save() { do { try library.save(targets) } catch { message = error.localizedDescription } }
     @discardableResult func commit(_ t: Target) -> Bool {
+        if let e = library.loadError { message = e; return false }
         do {
             try t.validate()
-            if let i = targets.firstIndex(where: { $0.id == t.id }) { targets[i] = t } else { targets.append(t) }
-            editing = nil; selected = t.id; save(); return true
+            var next = targets
+            if let i = next.firstIndex(where: { $0.id == t.id }) { next[i] = t } else { next.append(t) }
+            try library.save(next); targets = next
+            editing = nil; selected = t.id; return true
         } catch { message = error.localizedDescription; return false }
     }
-    func delete(_ t: Target) { targets.removeAll { $0.id == t.id }; status[t.id] = nil; if selected == t.id { selected = nil }; save() }
+    func delete(_ t: Target) {
+        if let e = library.loadError { message = e; return }
+        let next = targets.filter { $0.id != t.id }
+        do { try library.save(next) } catch { message = error.localizedDescription; return }
+        targets = next; status[t.id] = nil; if selected == t.id { selected = nil }
+    }
     func check(_ t: Target) {
         status[t.id, default: TargetStatus()].running = true
         Task { let r = await Probe.run(t); status[t.id] = TargetStatus(result: r, running: false) }
@@ -210,14 +270,15 @@ struct ContentView: View {
                 rail(5, "display", "Remote access", "RDP, RD Gateway, WinRM")
                 rail(6, "externaldrive.connected.to.line.below", "Appliances", "Synology DSM, Proxmox VE, PBS")
                 rail(7, "shippingbox", "Registry & Beats", "Docker registry, Logstash, Elasticsearch, mTLS")
+                rail(8, "printer", "Services & devices", "Munki, FileMaker, Retrospect, HP printer, Barracuda WAF")
                 Spacer()
                 Label("On demand only", systemImage: "hand.tap").font(.caption)
                 Text("Nothing runs in the background. Private keys are read in memory only and never logged, cached, copied or uploaded. Fix commands are copy-only.").font(.caption).foregroundStyle(.secondary)
-                Text("macOS 14+ · v0.7.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
+                Text("macOS 14+ · v0.8.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
                 Text("Config: \(AppConfig.source == "built-in defaults" ? "built-in defaults" : (AppConfig.source as NSString).abbreviatingWithTildeInPath)\(AppConfig.loadError == nil ? "" : " (error, defaults used)")").font(.caption2).foregroundStyle(.secondary).lineLimit(2).help(AppConfig.loadError ?? AppConfig.source).textSelection(.enabled)
             }.padding(24).frame(width: 230).frame(maxHeight: .infinity).background(accent.opacity(0.055))
             Divider()
-            Group { if m.section == 0 { FilesView() } else if m.section == 1 { TargetsView() } else if m.section == 2 { WireGuardView() } else if m.section == 3 { IPsecView() } else if m.section == 4 { RadiusView() } else if m.section == 5 { RemoteView() } else if m.section == 6 { ApplianceView() } else { StackView() } }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            Group { if m.section == 0 { FilesView() } else if m.section == 1 { TargetsView() } else if m.section == 2 { WireGuardView() } else if m.section == 3 { IPsecView() } else if m.section == 4 { RadiusView() } else if m.section == 5 { RemoteView() } else if m.section == 6 { ApplianceView() } else if m.section == 7 { StackView() } else { VendorView() } }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .alert("Certificate Checker", isPresented: Binding(get: { m.message != nil }, set: { if !$0 { m.message = nil } })) { Button("OK") {} } message: { Text(m.message ?? "") }
         .sheet(item: $m.editing) { t in TargetEditor(target: t) }
@@ -282,6 +343,7 @@ struct TargetsView: View {
                 HStack {
                     Text("Targets").font(.headline)
                     Spacer()
+                    if let e = m.targetsLoadError { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red).help(e) }
                     Button { m.editing = Target(name: "", host: "", service: .https) } label: { Image(systemName: "plus") }.help("Add target")
                     Button("Check all") { m.checkAll() }.disabled(m.targets.isEmpty || m.anyRunning)
                 }.padding(12)
@@ -371,7 +433,7 @@ struct FindingRow: View {
     let finding: Finding; let platform: Platform; let target: Target?; var identifier: String? = nil
     @State private var open = false
     var body: some View {
-        let guidance = (finding.severity < .warning && finding.kind != "install") ? [] : finding.topic == .wireguard ? WGAdvisor.guidance(for: finding, platform: platform) : finding.topic == .ipsec ? IPsecAdvisor.guidance(for: finding, platform: platform, identifier: identifier) : finding.topic == .radius ? RadiusAdvisor.guidance(for: finding, platform: platform) : finding.topic == .remote ? RemoteAdvisor.guidance(for: finding, target: target) : finding.topic == .appliance ? ApplianceAdvisor.guidance(for: finding, target: target) : finding.topic == .stack ? StackAdvisor.guidance(for: finding, target: target) : Advisor.guidance(for: finding.topic, platform: platform, target: target)
+        let guidance = (finding.severity < .warning && finding.kind != "install") ? [] : finding.topic == .wireguard ? WGAdvisor.guidance(for: finding, platform: platform) : finding.topic == .ipsec ? IPsecAdvisor.guidance(for: finding, platform: platform, identifier: identifier) : finding.topic == .radius ? RadiusAdvisor.guidance(for: finding, platform: platform) : finding.topic == .remote ? RemoteAdvisor.guidance(for: finding, target: target) : finding.topic == .appliance ? ApplianceAdvisor.guidance(for: finding, target: target) : finding.topic == .stack ? StackAdvisor.guidance(for: finding, target: target) : finding.topic == .vendor ? VendorAdvisor.guidance(for: finding, target: target) : Advisor.guidance(for: finding.topic, platform: platform, target: target)
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top) {
                 SeverityIcon(severity: finding.severity)
@@ -649,6 +711,74 @@ struct ApplianceView: View {
                     if !r.transcript.isEmpty { DisclosureGroup("Protocol transcript") { Text(r.transcript.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) } }
                     CommandRow(command: Probe.opensslCommand(t), caption: "Reproduce manually (copy-only)")
                 }
+            }.padding(28)
+        }
+    }
+}
+
+struct VendorView: View {
+    @EnvironmentObject var m: Checker
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Check service and device certificates.").font(.system(size: 30, weight: .semibold, design: .rounded))
+                Text("FileMaker Server (443 / 5003), Retrospect web console (443 / 8443), HP printer EWS (443), Barracuda WAF service listeners (443) and management UI (8443), and Munki repos: expiry, chain, SAN coverage, vendor default certificates, key and digest strength, negotiated protocol and trust. One TLS handshake; trust evaluation never fetches from the network. The Retrospect Engine (22024) and Client (497) ports are not TLS and are not checked.").foregroundStyle(.secondary)
+                GroupBox("Server certificate") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Picker("Product", selection: Binding(get: { m.vnd.service }, set: { m.vnd.select($0) })) {
+                                ForEach(VendorForm.services, id: \.self) { s in Text("\(s.rawValue) · \(s.defaultPort)").tag(s) }
+                            }.frame(width: 340)
+                            TextField("Host or IP (e.g. \(AppConfig.current.hostPlaceholder))", text: $m.vnd.host).frame(maxWidth: 260)
+                            TextField("Port", text: $m.vnd.port).frame(width: 70)
+                        }
+                        HStack {
+                            TextField("Expected certificate name (optional)", text: $m.vnd.expected).frame(maxWidth: 320)
+                            Spacer()
+                            Button("Add to Targets") { m.addVendorTarget() }.disabled(!m.vnd.canRun)
+                            Button(m.vndRunning ? "Checking…" : "Check once") { m.probeVendor() }.buttonStyle(.borderedProminent).tint(accent).disabled(m.vndRunning || !m.vnd.canRun)
+                        }
+                        Text("Guidance is copy-only (FileMaker Admin Console / fmsadmin, HP EWS menus, Barracuda BASIC › Certificates, Munki defaults). Nothing is executed.").font(.caption).foregroundStyle(.secondary)
+                    }.padding(6)
+                }
+                if let r = m.vndResult, let t = m.vndTarget {
+                    Text("Checked \(t.endpoint) in \(String(format: "%.2f", r.duration))s\(r.tlsVersion.map { " · \($0)" } ?? "")").font(.caption).foregroundStyle(.secondary)
+                    ResultsView(findings: r.findings, chain: r.chain, platform: t.platform, target: t, extra: nil)
+                    if !r.transcript.isEmpty { DisclosureGroup("Protocol transcript") { Text(r.transcript.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) } }
+                    CommandRow(command: Probe.opensslCommand(t), caption: "Reproduce manually (copy-only)")
+                    if t.service == .hpPrinter {
+                        ForEach(VendorAdvisor.hp(host: t.verifyName).commands.prefix(2), id: \.self) { c in CommandRow(command: c, caption: "Old-protocol test (copy-only; one handshake each)") }
+                    }
+                }
+                GroupBox("Munki: ManagedInstalls (offline) and repo") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Button("ManagedInstalls plist…") {
+                                let p = NSOpenPanel(); p.allowsMultipleSelection = false; p.canChooseDirectories = false
+                                p.message = "Choose a copy of /Library/Preferences/ManagedInstalls.plist. Read in memory only."
+                                if p.runModal() == .OK { m.munkiPlist = p.url; m.munkiFindings = nil }
+                            }
+                            Text(m.munkiPlist?.lastPathComponent ?? "No plist selected").foregroundStyle(.secondary).lineLimit(1)
+                            Button("Client cert + key…") {
+                                let p = NSOpenPanel(); p.allowsMultipleSelection = true; p.canChooseDirectories = false
+                                p.message = "Optional: the client certificate and/or its key (told apart by content), if the plist paths are not on this Mac. Read in memory only."
+                                if p.runModal() == .OK { m.munkiOverrides = p.urls }
+                            }
+                            Button("CA file…") {
+                                let p = NSOpenPanel(); p.allowsMultipleSelection = false; p.canChooseDirectories = false
+                                p.message = "Optional: SoftwareRepoCACertificate, if its path is not on this Mac."
+                                if p.runModal() == .OK { m.munkiCA = p.url }
+                            }
+                        }
+                        HStack {
+                            Toggle("Also check the repo TLS once (SoftwareRepoURL host)", isOn: $m.munkiProbe)
+                            Spacer()
+                            Button(m.munkiRunning ? "Checking…" : "Check Munki") { m.checkMunki() }.buttonStyle(.borderedProminent).tint(accent).disabled(m.munkiPlist == nil || m.munkiRunning)
+                        }
+                        Text("Reads SoftwareRepoURL, UseClientCertificate, ClientCertificatePath, ClientKeyPath and SoftwareRepoCACertificate; checks key match, clientAuth EKU and the chain. Configuration-profile (MDM) values are not read; a profile can override the plist. The client certificate is not presented in a handshake.").font(.caption).foregroundStyle(.secondary)
+                    }.padding(6)
+                }
+                if let f = m.munkiFindings { ResultsView(findings: f, chain: m.munkiChain, platform: .munki, target: nil, extra: nil) }
             }.padding(28)
         }
     }

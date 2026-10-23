@@ -53,7 +53,9 @@ public enum Stack {
             out.append(f("ca-chain", .pass, "ca-chain", "Chains to the supplied CA \(v.path.last?.displayName ?? "")", v.path.map(\.displayName).joined(separator: " → ")))
             let inValidity = v.path.allSatisfy { $0.notBefore <= now && now <= $0.notAfter }
             let nameOK = hostname.map { h in let m = leaf.matches(hostname: h); return m.matched && !m.viaCommonNameOnly } ?? false
-            if let i = out.firstIndex(where: { $0.id == "trust" }), out[i].severity == .fail, inValidity, nameOK {
+            // An EKU failure (e.g. no serverAuth) is a reason clients reject the certificate even with the CA: keep trust failed.
+            let ekuFail = out.contains { ($0.id == "eku" || $0.topic == .eku) && $0.severity == .fail }
+            if let i = out.firstIndex(where: { $0.id == "trust" }), out[i].severity == .fail, inValidity, nameOK, !ekuFail {
                 out[i].severity = .info; out[i].detail += " Clients configured with the supplied CA file trust it."
             }
         } else {
@@ -136,8 +138,14 @@ public enum RegistryAPI {
 // MARK: Offline Beats client certificate + key validation against a CA (in memory only).
 
 public enum MTLSPair {
+    /// Product wording for the findings: who verifies the client certificate and which settings name the files.
+    public struct Context: Equatable {
+        public var server: String, verifier: String, keySetting: String, pairSettings: String, caSetting: String
+        public static let beats = Context(server: "The Logstash beats input / Elasticsearch", verifier: "Java (Logstash, Elasticsearch)", keySetting: "ssl.key in filebeat.yml", pairSettings: "ssl.certificate and ssl.key", caSetting: "Logstash ssl_certificate_authorities, Elasticsearch xpack.security.http.ssl.certificate_authorities")
+        public static let munki = Context(server: "The Munki repo web server", verifier: "The repo web server", keySetting: "ClientKeyPath in ManagedInstalls (or --key)", pairSettings: "ClientCertificatePath and ClientKeyPath", caSetting: "the CA the repo web server trusts for clients, or SoftwareRepoCACertificate")
+    }
     /// Reads certificate, key and CA files (≤ 2 MB each). Keys are compared in memory and never printed.
-    public static func inspect(_ urls: [URL], ca caURLs: [URL], now: Date = Date()) -> (chain: [Certificate], findings: [Finding]) {
+    public static func inspect(_ urls: [URL], ca caURLs: [URL], now: Date = Date(), context: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
         func read(_ list: [URL], _ pre: inout [Finding]) -> [(String, Data)] {
             list.compactMap { url in
                 do {
@@ -150,11 +158,11 @@ public enum MTLSPair {
         }
         var pre: [Finding] = []
         let items = read(urls, &pre), caItems = read(caURLs, &pre)
-        let r = inspect(data: items, ca: caItems, now: now)
+        let r = inspect(data: items, ca: caItems, now: now, context: context)
         return (r.chain, Stack.sort(pre + r.findings))
     }
 
-    public static func inspect(data items: [(name: String, data: Data)], ca caItems: [(name: String, data: Data)], now: Date = Date()) -> (chain: [Certificate], findings: [Finding]) {
+    public static func inspect(data items: [(name: String, data: Data)], ca caItems: [(name: String, data: Data)], now: Date = Date(), context: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
         var rep = FileReport(), caRep = FileReport(); var notes: [Finding] = []
         for (name, data) in items {
             do { try FileCheck.load(name: name, data: data, password: nil, into: &rep) }
@@ -166,35 +174,35 @@ public enum MTLSPair {
         }
         var seen = Set<String>(); let certs = rep.certificates.filter { seen.insert($0.sha256).inserted }
         let ca = caRep.certificates
-        let r = evaluate(certs: certs, keys: rep.keys, ca: ca, now: now)
+        let r = evaluate(certs: certs, keys: rep.keys, ca: ca, now: now, context: context)
         return (r.chain, Stack.sort(notes + r.findings))
     }
 
-    public static func evaluate(certs: [Certificate], keys: [PublicKeyInfo], ca: [Certificate], now: Date = Date()) -> (chain: [Certificate], findings: [Finding]) {
+    public static func evaluate(certs: [Certificate], keys: [PublicKeyInfo], ca: [Certificate], now: Date = Date(), context c: Context = .beats) -> (chain: [Certificate], findings: [Finding]) {
         // The client certificate is the first non-CA certificate; any others are intermediates.
         guard let leaf = certs.first(where: { $0.isCA != true }) ?? certs.first else { return ([], [Stack.f("mtls-none", .fail, "mtls-client", "No client certificate found")]) }
         let who = "Client certificate \(leaf.displayName)"
         var out: [Finding] = []
         let days = Int(leaf.notAfter.timeIntervalSince(now) / 86_400)
         if now < leaf.notBefore { out.append(Stack.f("mtls-valid", .fail, "mtls-client", "\(who) is not yet valid", "Valid from \(Analysis.fmt(leaf.notBefore)).")) }
-        else if now > leaf.notAfter { out.append(Stack.f("mtls-valid", .fail, "mtls-client", "\(who) expired \(Analysis.fmt(leaf.notAfter))", "The Logstash beats input / Elasticsearch will reject the handshake.")) }
+        else if now > leaf.notAfter { out.append(Stack.f("mtls-valid", .fail, "mtls-client", "\(who) expired \(Analysis.fmt(leaf.notAfter))", "\(c.server) will reject the handshake.")) }
         else if days <= Analysis.warnDays { out.append(Stack.f("mtls-valid", .warning, "mtls-client", "\(who) expires in \(days) day\(days == 1 ? "" : "s")")) }
         else { out.append(Stack.f("mtls-valid", .pass, "mtls-client", "\(who) valid for \(days) more days", "Expires \(Analysis.fmt(leaf.notAfter)).")) }
         if leaf.isCA == true { out.append(Stack.f("mtls-isca", .fail, "mtls-client", "\(who) is a CA certificate", "Use an end-entity certificate (CA:FALSE).")) }
         if let eku = leaf.extendedKeyUsage {
             if eku.contains(OID.clientAuth) { out.append(Stack.f("mtls-eku", .pass, "mtls-client", "\(who) has the clientAuth EKU")) }
-            else if eku.contains(OID.anyEKU) { out.append(Stack.f("mtls-eku", .fail, "mtls-client", "\(who) has anyExtendedKeyUsage instead of clientAuth", "anyExtendedKeyUsage (2.5.29.37.0) does not name TLS Web Client Authentication. RFC 5280 says applications that require a specific purpose may reject it, and validators differ on whether they accept it in place of clientAuth, so the Logstash beats input / Elasticsearch may refuse the handshake. Reissue with extendedKeyUsage=clientAuth.")) }
-            else { out.append(Stack.f("mtls-eku", .fail, "mtls-client", "\(who) lacks the clientAuth EKU", "Present: \(eku.map(OID.name).joined(separator: ", ")). Java (Logstash, Elasticsearch) rejects client certificates whose EKU excludes TLS Web Client Authentication. Reissue with extendedKeyUsage=clientAuth.")) }
+            else if eku.contains(OID.anyEKU) { out.append(Stack.f("mtls-eku", .fail, "mtls-client", "\(who) has anyExtendedKeyUsage instead of clientAuth", "anyExtendedKeyUsage (2.5.29.37.0) does not name TLS Web Client Authentication. RFC 5280 says applications that require a specific purpose may reject it, and validators differ on whether they accept it in place of clientAuth, so \(c.server.prefix(1).lowercased() + c.server.dropFirst()) may refuse the handshake. Reissue with extendedKeyUsage=clientAuth.")) }
+            else { out.append(Stack.f("mtls-eku", .fail, "mtls-client", "\(who) lacks the clientAuth EKU", "Present: \(eku.map(OID.name).joined(separator: ", ")). \(c.verifier) rejects client certificates whose EKU excludes TLS Web Client Authentication. Reissue with extendedKeyUsage=clientAuth.")) }
         } else { out.append(Stack.f("mtls-eku", .info, "mtls-client", "\(who) has no Extended Key Usage", "Accepted for any purpose; prefer extendedKeyUsage=clientAuth when reissuing.")) }
-        if keys.isEmpty { out.append(Stack.f("mtls-key", .warning, "mtls-key", "No private key supplied", "Add the key file named by ssl.key in filebeat.yml to confirm it matches.")) }
+        if keys.isEmpty { out.append(Stack.f("mtls-key", .warning, "mtls-key", "No private key supplied", "Add the key file named by \(c.keySetting) to confirm it matches.")) }
         for (k, key) in keys.enumerated() {
             out.append(key.material == leaf.publicKey.material
                 ? Stack.f("mtls-key-\(k)", .pass, "mtls-key", "Private key matches the client certificate", "Compared in memory; the key is not shown.")
-                : Stack.f("mtls-key-\(k)", .fail, "mtls-key", "Private key does not match the client certificate", "ssl.certificate and ssl.key must be a pair. The handshake fails with a signature or bad-certificate error."))
+                : Stack.f("mtls-key-\(k)", .fail, "mtls-key", "Private key does not match the client certificate", "\(c.pairSettings) must be a pair. The handshake fails with a signature or bad-certificate error."))
         }
         var chain = [leaf]
         if ca.isEmpty {
-            out.append(Stack.f("mtls-ca", .warning, "mtls-ca", "No CA supplied", "Add the CA the server trusts for clients (Logstash ssl_certificate_authorities, Elasticsearch xpack.security.http.ssl.certificate_authorities) with --ca."))
+            out.append(Stack.f("mtls-ca", .warning, "mtls-ca", "No CA supplied", "Add the CA the server trusts for clients (\(c.caSetting)) with --ca."))
         } else {
             out += Stack.nonCAWarnings(ca)
             let v = Stack.verifies(leaf: leaf, intermediates: certs.filter { $0.sha256 != leaf.sha256 }, ca: ca, now: now)

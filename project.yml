@@ -13,8 +13,8 @@ settings:
     CODE_SIGN_STYLE: Manual
     DEVELOPMENT_TEAM: ""
     ENABLE_HARDENED_RUNTIME: NO
-    MARKETING_VERSION: "0.7.0"
-    CURRENT_PROJECT_VERSION: "9"
+    MARKETING_VERSION: "0.8.0"
+    CURRENT_PROJECT_VERSION: "10"
 targets:
   CertificateChecker:
     type: application

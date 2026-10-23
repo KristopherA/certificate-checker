@@ -1,6 +1,6 @@
 # Certificate Checker
 
-A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.7.0 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server, Docker registry/Logstash Beats/Elasticsearch checks), macOS 14+, universal (Apple Silicon and Intel).
+A native macOS app for checking certificate files and TLS services. It reports chain order, missing intermediates, SAN coverage, EKU, expiry, weak algorithms and key pairing, with fix steps for each platform. v0.8.0 (TLS, WireGuard, IKEv2 IPsec, RADIUS, RDP/RD Gateway/WinRM, Synology DSM/Proxmox VE/Proxmox Backup Server, Docker registry/Logstash Beats/Elasticsearch, Munki/FileMaker Server/Retrospect/HP printer EWS/Barracuda WAF checks), macOS 14+, universal (Apple Silicon and Intel).
 
 ## Run
 
@@ -285,6 +285,21 @@ Live probing against real appliances remains untested; validation uses SYNTHETIC
 
 Live behaviour against real registries, Logstash and Elasticsearch is untested; validation uses SYNTHETIC fixtures (`Tests/make-stack-fixtures.sh`) and a loopback server.
 - **Review follow-ups:** with `--ca` / the app CA file, the macOS trust failure becomes info only when the untrusted root is the sole problem (chain verifies to the supplied CA, every certificate is inside its validity dates, the leaf covers the host name by SAN); expired, mis-signed or wrong-host certificates still fail. Non-CA certificates in a CA file are warned about. `mtls-pair` fails a client certificate whose only EKU is anyExtendedKeyUsage and explains why. `verify-signatures.sh` defaults to `Source/dist` and prints the CLI path with its Identifier.
+
+## 0.8.0: Munki, FileMaker Server, Retrospect, HP printer EWS, Barracuda WAF
+
+New **Services & devices** section and CLI commands (`munki`, `munki-repo`, `fms`, `retrospect`, `hp-ews`, `waf`, `waf-mgmt`). All checks are on demand, one handshake per probe, trust evaluation never fetches from the network, and fix guidance is copy-only.
+
+- **Munki:** `certificate-checker munki ManagedInstalls.plist [--cert F] [--key F] [--ca F] [--probe-repo]` reads the plist offline (SoftwareRepoURL must be https; UseClientCertificate, ClientCertificatePath, ClientKeyPath, SoftwareRepoCACertificate). It checks key match, clientAuth EKU and chain to the CA in memory. `--probe-repo` adds one handshake to the repo host; `munki-repo HOST [--ca F]` checks the repo alone. Configuration profiles can override the plist and are not read.
+- **FileMaker Server (443 / 5003):** fails the default self-signed "FileMaker" test certificate; notes that 5003 must present the same certificate; fmsadmin certificate create/import steps.
+- **Retrospect:** only the self-hosted web console (443 / 8443) is checked. The Engine (22024) and Client (497) ports use Retrospect's own protocol, not TLS, so they are not checked; the hosted Management Console is Retrospect's own service.
+- **HP printer EWS (443):** default/self-signed device certificate, RSA keys under 2048 bits fail, TLS 1.0/1.1 negotiated fails. A single handshake cannot prove old protocols are disabled, so copy-only `openssl s_client -tls1` / `-tls1_1` commands are given.
+- **Barracuda WAF:** service listeners (443) and management UI (8443); default certificate fails on a service, warns on management.
+- Review carry-overs: supplied-CA downgrade is skipped when an EKU failure is present; tests for wildcard and IP-SAN downgrades and an expired intermediate.
+
+**Untested:** vendor default-certificate detection and behaviour were built from documentation and SYNTHETIC fixtures only (loopback); no probes were made against real Munki, FileMaker, Retrospect, HP or Barracuda products.
+
+**Release coverage (0.8.0):** live probes against real hosts were not run for this release; test coverage is the synthetic fixtures and the loopback server only.
 
 ## License
 

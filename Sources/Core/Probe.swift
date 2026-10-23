@@ -145,7 +145,7 @@ public enum Probe {
     public static var timeout: TimeInterval = 15
 
     /// Whether SecTrust may fetch intermediates (AIA) or revocation data. Off for appliance and registry/Beats/Elasticsearch checks (one handshake, no other traffic).
-    public static func allowsTrustNetworkFetch(_ s: Service) -> Bool { !s.isAppliance && !s.isStack }
+    public static func allowsTrustNetworkFetch(_ s: Service) -> Bool { !s.isAppliance && !s.isStack && !s.isVendor }
     /// Runs on a dedicated thread with its own run loop. Never follows redirects, sends no credentials, reads no application data.
     /// `registryAPI`: Docker registry targets only, explicitly requested: one unauthenticated GET /v2/ on the same TLS connection.
     public static func run(_ target: Target, timeout: TimeInterval = Probe.timeout, registryAPI: Bool = false) async -> ProbeResult {
@@ -186,6 +186,7 @@ public enum Probe {
             f = Remote.adjust(f, chain: r.chain, target: target)
             f = Appliance.adjust(f, chain: r.chain, target: target)
             f = Stack.adjust(f, chain: r.chain, target: target)
+            f = Vendor.adjust(f, chain: r.chain, target: target, tlsVersion: r.tlsVersion)
             if registryAPI && target.service == .dockerRegistry {
                 do {
                     try conn.write(RegistryAPI.request(host: target.serverName, port: target.port)); r.transcript.append("C: GET /v2/ (no credentials, explicitly requested)")
@@ -202,7 +203,7 @@ public enum Probe {
             let topic: Topic = (error as? ProbeError) != nil ? .startTLS : .connection
             let probe = Finding("probe", .fail, topic, topic == .startTLS ? "TLS upgrade failed" : "Could not complete TLS to \(target.endpoint)", error.localizedDescription)
             // A failed RDP negotiation already explains itself; do not repeat it as a generic upgrade failure.
-            r.findings = r.negotiation.contains { $0.severity == .fail } ? r.negotiation : r.negotiation + [probe] + [Stack.handshakeFailureNote(target)].compactMap { $0 }
+            r.findings = r.negotiation.contains { $0.severity == .fail } ? r.negotiation : r.negotiation + [probe] + [Stack.handshakeFailureNote(target), Vendor.handshakeFailureNote(target)].compactMap { $0 }
         }
         return r
     }

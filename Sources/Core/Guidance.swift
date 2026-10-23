@@ -47,7 +47,7 @@ public enum Advisor {
                 "For HTTPS targets, use Connection Workbench to compare DNS, proxy and route evidence.",
                 "Check the firewall rule on pfSense (Firewall › Rules) for the source network."
             ], commands: ["nc -vz \(Shell.quote(target?.host ?? "HOST")) \(target?.port ?? 443)", target.map(Probe.opensslCommand) ?? "\(Shell.openssl) s_client -connect HOST:443 </dev/null"], docs: [KB.pfSense]))
-        case .csr, .general, .wireguard, .ipsec, .radius, .remote, .appliance, .stack: break
+        case .csr, .general, .wireguard, .ipsec, .radius, .remote, .appliance, .stack, .vendor: break
         }
         return out
     }
@@ -95,6 +95,9 @@ public enum Advisor {
             return ApplianceAdvisor.binding(service, host: host, why: why) ?? Guidance(title: "Reissue and redeploy", steps: [why], commands: [], docs: [KB.pki])
         case .dockerRegistry where service == .dockerRegistry, .elasticStack where service == .logstashBeats || service == .elasticsearch:
             return StackAdvisor.binding(service, host: host, port: nil, why: why) ?? Guidance(title: "Reissue and redeploy", steps: [why], commands: [], docs: [KB.pki])
+        case .munki, .fileMaker, .retrospect, .hpPrinter, .barracuda:
+            let fallback: Service = p == .munki ? .munkiRepo : p == .fileMaker ? .fileMaker : p == .retrospect ? .retrospectConsole : p == .hpPrinter ? .hpPrinter : .barracudaService
+            return VendorAdvisor.binding(service?.isVendor == true ? service : fallback, host: host, why: why) ?? Guidance(title: "Reissue and redeploy", steps: [why], commands: [], docs: [KB.pki])
         case .dockerRegistry:
             return StackAdvisor.registry(host: host, port: 443, why: why)
         case .elasticStack:

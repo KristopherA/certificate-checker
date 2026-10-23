@@ -26,13 +26,27 @@ import Foundation
       certificate-checker es HOST [--port 9200] [--sni NAME] [--expect NAME] [--ca FILE]      (Elasticsearch HTTPS certificate)
                           (--ca: the CA file clients use, e.g. ssl.certificate_authorities; the chain is checked against it offline)
       certificate-checker mtls-pair CERT KEY [MORE...] [--ca FILE]   (Beats client certificate + key: key match, clientAuth EKU, chain to CA; offline)
-    SERVICE: https tls ldaps ldap-starttls smtp-starttls smtps imap-starttls imaps pop3-starttls pop3s mysql rdp rdg winrm dsm pve pbs registry beats es
-    Read-only. dsm/pve/pbs/beats/es stop after the TLS handshake (no HTTP request, no login); registry too unless --check-v2. The client certificate is never presented in a handshake (mtls-pair is offline only). For PFX/P12 (macOS 15+; .pfx/.p12 extension, or any file with --pfx) you are prompted for the password without echo. --password-stdin reads one line from piped stdin (prompts hidden instead if stdin is a terminal). Passwords are never stored. CERTCHECK_PFX_PASSWORD is no longer supported. Exit 0 = no failures, 1 = failures, 2 = usage.
+      certificate-checker munki PLIST [--cert FILE] [--key FILE] [--ca FILE] [--probe-repo]
+                          (ManagedInstalls plist offline: SoftwareRepoURL, client certificate/key pair and chain to SoftwareRepoCACertificate;
+                           --cert/--key/--ca override the plist paths; --probe-repo also makes one TLS handshake to the SoftwareRepoURL host)
+      certificate-checker munki-repo HOST [--port 443] [--sni NAME] [--expect NAME] [--ca FILE]   (Munki repo HTTPS certificate)
+      certificate-checker fms HOST [--port 443|5003] [--sni NAME] [--expect NAME]   (FileMaker Server; flags the default "FileMaker" certificate)
+      certificate-checker retrospect HOST [--port 443|8443] [--sni NAME] [--expect NAME]
+                          (Retrospect self-hosted web console; the Engine 22024 and Client 497 ports are not TLS and are not checked)
+      certificate-checker hp-ews HOST [--port 443] [--sni NAME] [--expect NAME]   (HP printer EWS: default cert, key size, negotiated protocol)
+      certificate-checker waf HOST [--port 443] [--sni NAME] [--expect NAME]        (Barracuda WAF HTTPS service listener)
+      certificate-checker waf-mgmt HOST [--port 8443] [--sni NAME] [--expect NAME]  (Barracuda WAF management UI)
+    SERVICE: https tls ldaps ldap-starttls smtp-starttls smtps imap-starttls imaps pop3-starttls pop3s mysql rdp rdg winrm dsm pve pbs registry beats es munki-repo fms retrospect hp-ews waf waf-mgmt
+    Read-only. dsm/pve/pbs/beats/es and the vendor checks (munki-repo fms retrospect hp-ews waf waf-mgmt) stop after the TLS handshake (no HTTP request, no login); registry too unless --check-v2. The client certificate is never presented in a handshake (mtls-pair is offline only). For PFX/P12 (macOS 15+; .pfx/.p12 extension, or any file with --pfx) you are prompted for the password without echo. --password-stdin reads one line from piped stdin (prompts hidden instead if stdin is a terminal). Passwords are never stored. CERTCHECK_PFX_PASSWORD is no longer supported. Exit 0 = no failures, 1 = failures, 2 = usage.
     """
-    static let services: [String: Service] = ["https": .https, "tls": .tls, "ldaps": .ldaps, "ldap-starttls": .ldapStartTLS, "smtp-starttls": .smtpStartTLS, "smtps": .smtps, "imap-starttls": .imapStartTLS, "imaps": .imaps, "pop3-starttls": .pop3StartTLS, "pop3s": .pop3s, "mysql": .mysql, "rdp": .rdp, "rdg": .rdGateway, "winrm": .winrmHTTPS, "dsm": .synologyDSM, "pve": .proxmoxVE, "pbs": .proxmoxBackup, "registry": .dockerRegistry, "beats": .logstashBeats, "es": .elasticsearch]
+    static let services: [String: Service] = ["https": .https, "tls": .tls, "ldaps": .ldaps, "ldap-starttls": .ldapStartTLS, "smtp-starttls": .smtpStartTLS, "smtps": .smtps, "imap-starttls": .imapStartTLS, "imaps": .imaps, "pop3-starttls": .pop3StartTLS, "pop3s": .pop3s, "mysql": .mysql, "rdp": .rdp, "rdg": .rdGateway, "winrm": .winrmHTTPS, "dsm": .synologyDSM, "pve": .proxmoxVE, "pbs": .proxmoxBackup, "registry": .dockerRegistry, "beats": .logstashBeats, "es": .elasticsearch, "munki-repo": .munkiRepo, "fms": .fileMaker, "retrospect": .retrospectConsole, "hp-ews": .hpPrinter, "waf": .barracudaService, "waf-mgmt": .barracudaManagement]
 
     static func option(_ args: inout [String], _ name: String) -> String? {
-        guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
+        guard let i = args.firstIndex(of: name) else { return nil }
+        // A flag with no value (last argument, or followed by another --flag) is a usage error, not a host name.
+        guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+            FileHandle.standardError.write("\(name) needs a value\n".data(using: .utf8)!); exit(2)
+        }
         let v = args[i + 1]; args.removeSubrange(i...(i + 1)); return v
     }
     /// Hidden prompt on the controlling terminal via readpassphrase(3); input is not echoed.
@@ -74,7 +88,7 @@ import Foundation
             }
             exit(check && (missing > 0 || AppConfig.loadError != nil) ? 1 : 0)
         }
-        guard let cmd = args.first, ["file", "probe", "wireguard", "ipsec", "radius", "radius-probe", "rdp", "rdg", "winrm", "dsm", "pve", "pbs", "registry", "beats", "es", "mtls-pair"].contains(cmd) else { print(usage); exit(args.isEmpty || args == ["--help"] ? 0 : 2) }
+        guard let cmd = args.first, ["file", "probe", "wireguard", "ipsec", "radius", "radius-probe", "rdp", "rdg", "winrm", "dsm", "pve", "pbs", "registry", "beats", "es", "mtls-pair", "munki", "munki-repo", "fms", "retrospect", "hp-ews", "waf", "waf-mgmt"].contains(cmd) else { print(usage); exit(args.isEmpty || args == ["--help"] ? 0 : 2) }
         args.removeFirst()
         if cmd == "wireguard" {
             let expected = option(&args, "--expect-public")
@@ -92,6 +106,36 @@ import Foundation
             for c in r.cas { print("CA \(c.label) · \(c.cert.subject.text) · expires \(Analysis.fmt(c.cert.notAfter))") }
             printFindings(r.findings)
             exit(r.findings.contains { $0.severity == .fail } ? 1 : 0)
+        }
+        if cmd == "munki" {
+            let cert = option(&args, "--cert").map { URL(fileURLWithPath: $0) }, key = option(&args, "--key").map { URL(fileURLWithPath: $0) }
+            let ca = option(&args, "--ca").map { URL(fileURLWithPath: $0) }
+            let probe = args.contains("--probe-repo"); args.removeAll { $0 == "--probe-repo" }
+            guard args.count == 1, !args[0].hasPrefix("--") else { print(usage); exit(2) }
+            let settings: MunkiSettings
+            do {
+                settings = try Munki.load(URL(fileURLWithPath: args[0]))
+            } catch { fputs("Could not read \(args[0]): \(error.localizedDescription)\n", stderr); exit(2) }
+            print("SoftwareRepoURL: \(settings.repoURL ?? "(not set)")")
+            print("Note: \(Munki.profileNote)")
+            let r = Munki.inspect(settings, cert: cert, key: key, ca: ca)
+            for (i, c) in r.chain.enumerated() { print("#\(i + 1) \(c.subject.text) · expires \(Analysis.fmt(c.notAfter)) · \(c.publicKey.algorithm.description)") }
+            var findings = r.findings
+            if probe {
+                if let t = settings.repoTarget {
+                    var p = await Probe.run(t)
+                    let caURL = ca ?? settings.caCertificate.map { URL(fileURLWithPath: $0) }
+                    if let caURL, !p.chain.isEmpty {
+                        do { p.findings = Stack.suppliedCA(p.findings, chain: p.chain, ca: try Stack.loadCA([caURL]), hostname: t.verifyName) }
+                        catch { p.findings.append(Finding("munki-ca-read", .fail, .vendor, "Could not read SoftwareRepoCACertificate", error.localizedDescription)) }
+                    }
+                    print("Repo \(t.endpoint)\(p.tlsVersion.map { " · \($0)" } ?? "")")
+                    for (i, c) in p.chain.enumerated() { print("  #\(i + 1) \(c.subject.text) · expires \(Analysis.fmt(c.notAfter))") }
+                    findings += p.findings.map { var g = $0; g.title = "Repo: " + g.title; return g }
+                } else { findings.append(Finding("munki-probe", .info, .vendor, "Repo not probed", "SoftwareRepoURL is not an https:// URL with a host.")) }
+            }
+            printFindings(findings)
+            exit(findings.contains { $0.severity == .fail } ? 1 : 0)
         }
         if cmd == "mtls-pair" {
             var cas: [URL] = []; while let c = option(&args, "--ca") { cas.append(URL(fileURLWithPath: c)) }
@@ -111,7 +155,7 @@ import Foundation
         }
         if cmd == "radius-probe" {
             let name = option(&args, "--expect")
-            let port = option(&args, "--port").map { Int($0) ?? -1 } ?? 1812
+            let port = parsePort(option(&args, "--port")) ?? 1812
             let method: EAPMethod? = ["peap": .peap, "ttls": .ttls][(option(&args, "--method") ?? "peap").lowercased()]
             let fromStdin = args.contains("--secret-stdin"); args.removeAll { $0 == "--secret-stdin" }
             guard args.count == 1, let method else { print(usage); exit(2) }
@@ -146,7 +190,7 @@ import Foundation
             printFindings(r.findings)
             exit(r.findings.contains { $0.severity == .fail } ? 1 : 0)
         }
-        let port = option(&args, "--port").map { Int($0) ?? -1 }
+        let port = parsePort(option(&args, "--port"))
         let sni = option(&args, "--sni") ?? "", expect = option(&args, "--expect") ?? ""
         let pin = option(&args, "--fingerprint")
         var checkHTTP = false, httpPort = WinRMHTTP.defaultPort
@@ -168,7 +212,7 @@ import Foundation
             guard FingerprintPin.normalize(pin) != nil else { fputs("--fingerprint must be a SHA-256 colon-hex value (AA:BB:…, 32 bytes).\n", stderr); exit(2) }
             t.fingerprintPin = pin
         }
-        if !caFiles.isEmpty && !svc.isStack { fputs("--ca applies only to registry, beats and es.\n", stderr); print(usage); exit(2) }
+        if !caFiles.isEmpty && !svc.isStack && svc != .munkiRepo { fputs("--ca applies only to registry, beats, es and munki-repo.\n", stderr); print(usage); exit(2) }
         if checkV2 { fputs("Note: --check-v2 sends one unauthenticated GET /v2/ after the handshake (no credentials).\n", stderr) }
         var r = await Probe.run(t, registryAPI: checkV2)
         if !caFiles.isEmpty && !r.chain.isEmpty {
@@ -186,4 +230,11 @@ import Foundation
         printFindings(r.findings)
         exit(r.findings.contains { $0.severity == .fail } ? 1 : 0)
     }
+}
+
+/// --port must be an integer 1–65535; anything else is a usage error (exit 2).
+func parsePort(_ s: String?) -> Int? {
+    guard let s else { return nil }
+    guard let p = Int(s), (1...65535).contains(p) else { fputs("--port must be a number 1–65535.\n", stderr); exit(2) }
+    return p
 }

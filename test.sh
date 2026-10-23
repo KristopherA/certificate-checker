@@ -12,6 +12,7 @@ DERIVED="${DERIVED:-$HOME/Library/Caches/CertificateChecker/DerivedData}"
 [ -f "$ROOT/Tests/Fixtures/rdp-selfexpired.pem" ] || "$ROOT/Tests/make-remote-fixtures.sh"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-pbs-selfsigned.pem" ] || "$ROOT/Tests/make-appliance-fixtures.sh"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-beats-client.pem" ] || "$ROOT/Tests/make-stack-fixtures.sh"
+[ -f "$ROOT/Tests/Fixtures/SYNTHETIC-vendor-ca.pem" ] || "$ROOT/Tests/make-vendor-fixtures.sh"
 (cd "$ROOT" && xcodegen generate --quiet)
 FIXTURES="$(dirname "$DERIVED")/fixtures"
 rm -rf "$FIXTURES"; mkdir -p "$FIXTURES"; cp "$ROOT"/Tests/Fixtures/* "$ROOT/Tests/tls_server.py" "$FIXTURES/"
@@ -95,6 +96,25 @@ if "$CLI" mtls-pair "$FIXTURES/SYNTHETIC-beats-serveronly.pem" "$FIXTURES/SYNTHE
 out="$("$CLI" mtls-pair "$FIXTURES/SYNTHETIC-beats-client.pem" "$FIXTURES/SYNTHETIC-beats-client.key" --ca "$FIXTURES/SYNTHETIC-stack-ca.pem" 2>&1 || true)"
 if printf '%s' "$out" | grep -qF "$(sed -n 2p "$FIXTURES/SYNTHETIC-beats-client.key")"; then echo "  LEAK of client key"; exit 1; fi
 echo "  ok  usage errors exit 2; bad pair exits non-zero; client key never printed"
+echo "CLI vendor probes usage, --port and --ca misuse (no network)…"
+for bad in "fms" "retrospect" "hp-ews" "waf" "waf-mgmt" "munki-repo" "fms a b" "hp-ews a b" "waf-mgmt --port" \
+           "fms h.example.test --port abc" "waf h.example.test --port 0" "retrospect h.example.test --port 70000" "https h.example.test --port abc" \
+           "fms h.example.test --ca $FIXTURES/SYNTHETIC-vendor-ca.pem" "hp-ews h.example.test --ca $FIXTURES/SYNTHETIC-vendor-ca.pem" \
+           "waf h.example.test --ca $FIXTURES/SYNTHETIC-vendor-ca.pem" "munki-repo h.example.test --ca" "radius-probe h.example.test --port abc"; do
+  set +e; "$CLI" $bad >/dev/null 2>&1 </dev/null; rc=$?; set -e
+  [ "$rc" = 2 ] || { echo "  '$bad' exit $rc (want 2)"; exit 1; }
+done
+echo "  ok  vendor usage errors, bad --port and --ca misuse exit 2"
+echo "CLI munki (offline): usage, symlink and oversize refused, profile note…"
+MT="$(mktemp -d)"; ln -s "$FIXTURES/SYNTHETIC-ManagedInstalls.plist" "$MT/link.plist"; mkfile -n 3m "$MT/big.plist"
+for bad in "munki" "munki a b" "munki --probe-repo" "munki $MT/link.plist" "munki $MT/big.plist" "munki $MT/missing.plist"; do
+  set +e; "$CLI" $bad >/dev/null 2>&1; rc=$?; set -e
+  [ "$rc" = 2 ] || { rm -rf "$MT"; echo "  '$bad' exit $rc (want 2)"; exit 1; }
+done
+rm -rf "$MT"
+out="$("$CLI" munki "$FIXTURES/SYNTHETIC-ManagedInstalls.plist" 2>&1 || true)"
+printf '%s' "$out" | grep -q "Configuration-profile (MDM) values for ManagedInstalls are not read" || { echo "  munki output lacks the profile note"; exit 1; }
+echo "  ok  usage, symlinked and oversize plists exit 2; profile note printed"
 echo "Log scan: no organisation-specific strings, no local-config output…"
 # Word-bounded so "unable"/"unauthenticated" do not match. The organisation word is assembled at run time so this
 # script itself never contains it (check-identifiers scans the tree); the local patterns file, if present, is applied too.

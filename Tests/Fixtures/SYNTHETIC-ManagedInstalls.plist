@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SoftwareRepoURL</key><string>https://munki.example.test/repo</string>
+	<key>UseClientCertificate</key><true/>
+	<key>ClientCertificatePath</key><string>/Library/Managed Installs/certs/client.pem</string>
+	<key>ClientKeyPath</key><string>/Library/Managed Installs/certs/client.key</string>
+	<key>SoftwareRepoCACertificate</key><string>/Library/Managed Installs/certs/ca.pem</string>
+</dict>
+</plist>
