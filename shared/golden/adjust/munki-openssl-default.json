@@ -1,0 +1,77 @@
+{
+  "case": "munki-openssl-default",
+  "chain_sha256": [
+    "41:B3:9C:42:52:43:8F:D1:73:79:6D:49:CD:2D:66:E1:68:01:07:99:EB:8B:49:77:2B:41:F3:BC:8A:85:1E:D8"
+  ],
+  "findings": [
+    {
+      "id": "munki-default",
+      "kind": "munki-cert",
+      "severity": "fail",
+      "title": "Munki repo serves a placeholder certificate",
+      "topic": "vendor"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "warning",
+      "title": "localhost matches only the Common Name",
+      "topic": "hostname"
+    },
+    {
+      "id": "san",
+      "kind": "",
+      "severity": "warning",
+      "title": "Leaf has no Subject Alternative Name",
+      "topic": "noSAN"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "info",
+      "title": "No extended key usage extension",
+      "topic": "eku"
+    },
+    {
+      "id": "vendor-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 41:B3:9C:42:52:43:8F:D1:73:79:6D:49:CD:2D:66:E1:68:01:07:99:EB:8B:49:77:2B:41:F3:BC:8A:85:1E:D8",
+      "topic": "vendor"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 3565 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "localhost",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 443,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Munki repo (HTTPS)"
+}

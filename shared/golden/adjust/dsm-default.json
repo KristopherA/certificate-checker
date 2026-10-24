@@ -1,0 +1,78 @@
+{
+  "case": "dsm-default",
+  "chain_sha256": [
+    "7F:64:BA:41:04:29:91:B7:81:67:2A:F7:39:AC:B9:8C:8F:E1:8B:02:B9:E8:6A:E3:4F:BC:A7:3F:B3:28:E8:67",
+    "C4:51:B7:47:8C:38:AB:66:A5:A8:D7:21:7C:6A:5B:6C:FE:1B:EF:22:46:32:22:65:B1:1D:E4:98:37:99:BE:E0"
+  ],
+  "findings": [
+    {
+      "id": "dsm-default",
+      "kind": "dsm-cert",
+      "severity": "warning",
+      "title": "Synology DSM factory certificate",
+      "topic": "appliance"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "appl-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 7F:64:BA:41:04:29:91:B7:81:67:2A:F7:39:AC:B9:8C:8F:E1:8B:02:B9:E8:6A:E3:4F:BC:A7:3F:B3:28:E8:67",
+      "topic": "appliance"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 280 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers synology",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "synology",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 5001,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Synology DSM (HTTPS)"
+}

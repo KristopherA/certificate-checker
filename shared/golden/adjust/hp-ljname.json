@@ -1,0 +1,84 @@
+{
+  "case": "hp-ljname",
+  "chain_sha256": [
+    "5A:58:15:26:3F:81:D4:27:22:6F:83:94:B8:DB:8E:75:58:2C:78:F8:36:2E:7B:A4:14:1B:3E:2D:66:13:84:62"
+  ],
+  "findings": [
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "fail",
+      "title": "Certificate does not cover printer.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "hp-default",
+      "kind": "hp-cert",
+      "severity": "warning",
+      "title": "HP printer factory self-signed certificate",
+      "topic": "vendor"
+    },
+    {
+      "id": "san",
+      "kind": "",
+      "severity": "warning",
+      "title": "Leaf has no Subject Alternative Name",
+      "topic": "noSAN"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "info",
+      "title": "No extended key usage extension",
+      "topic": "eku"
+    },
+    {
+      "id": "hp-protocol",
+      "kind": "hp-tls",
+      "severity": "info",
+      "title": "Older protocols not tested",
+      "topic": "vendor"
+    },
+    {
+      "id": "vendor-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 5A:58:15:26:3F:81:D4:27:22:6F:83:94:B8:DB:8E:75:58:2C:78:F8:36:2E:7B:A4:14:1B:3E:2D:66:13:84:62",
+      "topic": "vendor"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 3565 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "printer.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 443,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "HP printer EWS (HTTPS)"
+}

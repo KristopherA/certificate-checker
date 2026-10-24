@@ -1,0 +1,91 @@
+{
+  "case": "hp-default",
+  "chain_sha256": [
+    "1D:10:5A:95:F3:5B:5A:FC:55:51:45:EA:CE:13:41:83:97:65:A8:36:E2:47:2B:C4:6C:B9:C1:42:69:1E:29:68"
+  ],
+  "findings": [
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "fail",
+      "title": "Certificate does not cover printer.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "hp-weakkey",
+      "kind": "hp-tls",
+      "severity": "fail",
+      "title": "HP printer certificate uses a 1024-bit RSA key",
+      "topic": "vendor"
+    },
+    {
+      "id": "key-0",
+      "kind": "",
+      "severity": "fail",
+      "title": "Leaf has a weak 1024-bit RSA key",
+      "topic": "weakKey"
+    },
+    {
+      "id": "hp-default",
+      "kind": "hp-cert",
+      "severity": "warning",
+      "title": "HP printer factory self-signed certificate",
+      "topic": "vendor"
+    },
+    {
+      "id": "san",
+      "kind": "",
+      "severity": "warning",
+      "title": "Leaf has no Subject Alternative Name",
+      "topic": "noSAN"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "info",
+      "title": "No extended key usage extension",
+      "topic": "eku"
+    },
+    {
+      "id": "hp-protocol",
+      "kind": "hp-tls",
+      "severity": "info",
+      "title": "Older protocols not tested",
+      "topic": "vendor"
+    },
+    {
+      "id": "vendor-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 1D:10:5A:95:F3:5B:5A:FC:55:51:45:EA:CE:13:41:83:97:65:A8:36:E2:47:2B:C4:6C:B9:C1:42:69:1E:29:68",
+      "topic": "vendor"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 3565 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "printer.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 443,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "HP printer EWS (HTTPS)"
+}

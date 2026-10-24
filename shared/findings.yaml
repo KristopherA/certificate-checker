@@ -181,7 +181,7 @@ findings:
     title: "Public address on an internal network"
     detail: "{d}"
     source: "Core/Resolution.swift"
-    mac_only: true
+    mac_only: false
   - id: "winrm-http"
     severity: "fail"
     topic: "connection"

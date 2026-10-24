@@ -1,0 +1,275 @@
+{
+  "schema": 1,
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "note": "Offline adjustments: Analysis + platform trust (no network) + Remote/Appliance/Stack/Vendor, TLS version unknown.",
+  "cases": [
+    {
+      "name": "rdp-selfsigned",
+      "files": [
+        "rdp-selfsigned.pem"
+      ],
+      "service": "RDP (TLS)",
+      "hostname": "rdp.example.test"
+    },
+    {
+      "name": "rdp-rda-only",
+      "files": [
+        "rdp-rda-only.pem"
+      ],
+      "service": "RDP (TLS)",
+      "hostname": "rdp.example.test"
+    },
+    {
+      "name": "rdp-clientauth",
+      "files": [
+        "rdp-clientauth.pem"
+      ],
+      "service": "RDP (TLS)",
+      "hostname": "rdp.example.test"
+    },
+    {
+      "name": "rdp-nosan",
+      "files": [
+        "rdp-nosan.pem"
+      ],
+      "service": "RDP (TLS)",
+      "hostname": "rdp.example.test"
+    },
+    {
+      "name": "rdg-selfsigned",
+      "files": [
+        "rdg-selfsigned.pem"
+      ],
+      "service": "RD Gateway (HTTPS)",
+      "hostname": "rdg.example.test"
+    },
+    {
+      "name": "winrm-cn",
+      "files": [
+        "winrm-cn.pem"
+      ],
+      "service": "WinRM HTTPS",
+      "hostname": "winrm.example.test"
+    },
+    {
+      "name": "https-rdp-cert",
+      "files": [
+        "rdp-selfsigned.pem"
+      ],
+      "service": "HTTPS",
+      "hostname": "rdp.example.test"
+    },
+    {
+      "name": "dsm-default",
+      "files": [
+        "SYNTHETIC-dsm-default.pem"
+      ],
+      "service": "Synology DSM (HTTPS)",
+      "hostname": "synology"
+    },
+    {
+      "name": "pve-default",
+      "files": [
+        "SYNTHETIC-pve-default.pem"
+      ],
+      "service": "Proxmox VE (HTTPS)",
+      "hostname": "pve1.example.test"
+    },
+    {
+      "name": "pve-pin-match",
+      "files": [
+        "SYNTHETIC-pve-default.pem"
+      ],
+      "service": "Proxmox VE (HTTPS)",
+      "hostname": "pve1.example.test",
+      "fingerprint_pin": "A4:98:34:93:EB:D6:F3:4F:F5:E0:2F:EE:85:E8:C0:7D:CE:D2:DB:DD:57:EF:F5:4D:C6:D0:02:19:A4:95:21:BA"
+    },
+    {
+      "name": "pve-pin-mismatch",
+      "files": [
+        "SYNTHETIC-pve-default.pem"
+      ],
+      "service": "Proxmox VE (HTTPS)",
+      "hostname": "pve1.example.test",
+      "fingerprint_pin": "82FA3B07B2C3F24EE5D1B10C9EE03051DA736E5F32CAD3158BC2926B77808C33"
+    },
+    {
+      "name": "pve-pin-malformed",
+      "files": [
+        "SYNTHETIC-pve-default.pem"
+      ],
+      "service": "Proxmox VE (HTTPS)",
+      "hostname": "pve1.example.test",
+      "fingerprint_pin": "not-a-pin"
+    },
+    {
+      "name": "pbs-selfsigned",
+      "files": [
+        "SYNTHETIC-pbs-selfsigned.pem"
+      ],
+      "service": "Proxmox Backup Server (HTTPS)",
+      "hostname": "pbs.example.test"
+    },
+    {
+      "name": "pbs-pin-match",
+      "files": [
+        "SYNTHETIC-pbs-selfsigned.pem"
+      ],
+      "service": "Proxmox Backup Server (HTTPS)",
+      "hostname": "pbs.example.test",
+      "fingerprint_pin": "82fa3b07b2c3f24ee5d1b10c9ee03051da736e5f32cad3158bc2926b77808c33"
+    },
+    {
+      "name": "es-auto",
+      "files": [
+        "SYNTHETIC-es-auto.pem"
+      ],
+      "service": "Elasticsearch (HTTPS)",
+      "hostname": "es.example.test"
+    },
+    {
+      "name": "es-server",
+      "files": [
+        "SYNTHETIC-es-server.pem"
+      ],
+      "service": "Elasticsearch (HTTPS)",
+      "hostname": "es.example.test"
+    },
+    {
+      "name": "logstash-server",
+      "files": [
+        "SYNTHETIC-logstash-server.pem"
+      ],
+      "service": "Logstash Beats input (TLS)",
+      "hostname": "logstash.example.test"
+    },
+    {
+      "name": "registry-server",
+      "files": [
+        "SYNTHETIC-registry-server.pem"
+      ],
+      "service": "Docker registry (HTTPS)",
+      "hostname": "registry.example.test"
+    },
+    {
+      "name": "munki-repo",
+      "files": [
+        "SYNTHETIC-munki-repo.pem"
+      ],
+      "service": "Munki repo (HTTPS)",
+      "hostname": "munki.example.test"
+    },
+    {
+      "name": "munki-openssl-default",
+      "files": [
+        "SYNTHETIC-openssl-default.pem"
+      ],
+      "service": "Munki repo (HTTPS)",
+      "hostname": "localhost"
+    },
+    {
+      "name": "fms-default",
+      "files": [
+        "SYNTHETIC-fms-default.pem"
+      ],
+      "service": "FileMaker Server (TLS)",
+      "hostname": "fms.example.test"
+    },
+    {
+      "name": "fms-custom",
+      "files": [
+        "SYNTHETIC-fms-custom.pem"
+      ],
+      "service": "FileMaker Server (TLS)",
+      "hostname": "fms.example.test"
+    },
+    {
+      "name": "retrospect-default",
+      "files": [
+        "SYNTHETIC-retrospect-default.pem"
+      ],
+      "service": "Retrospect web console (HTTPS)",
+      "hostname": "retro.example.test"
+    },
+    {
+      "name": "hp-default",
+      "files": [
+        "SYNTHETIC-hp-default.pem"
+      ],
+      "service": "HP printer EWS (HTTPS)",
+      "hostname": "printer.example.test"
+    },
+    {
+      "name": "hp-hpinc",
+      "files": [
+        "SYNTHETIC-hp-hpinc.pem"
+      ],
+      "service": "HP printer EWS (HTTPS)",
+      "hostname": "printer.example.test"
+    },
+    {
+      "name": "hp-ljname",
+      "files": [
+        "SYNTHETIC-hp-ljname.pem"
+      ],
+      "service": "HP printer EWS (HTTPS)",
+      "hostname": "printer.example.test"
+    },
+    {
+      "name": "hpc-lookalike",
+      "files": [
+        "SYNTHETIC-hpc-lookalike.pem"
+      ],
+      "service": "HP printer EWS (HTTPS)",
+      "hostname": "hpc01.example.test"
+    },
+    {
+      "name": "barracuda-mgmt",
+      "files": [
+        "SYNTHETIC-barracuda-default.pem"
+      ],
+      "service": "Barracuda WAF management (HTTPS)",
+      "hostname": "localhost"
+    },
+    {
+      "name": "barracuda-service",
+      "files": [
+        "SYNTHETIC-barracuda-default.pem"
+      ],
+      "service": "Barracuda WAF service (HTTPS)",
+      "hostname": "waf.example.test"
+    },
+    {
+      "name": "generic-openssl-default",
+      "files": [
+        "SYNTHETIC-openssl-default.pem"
+      ],
+      "service": "HTTPS",
+      "hostname": "www.example.test"
+    },
+    {
+      "name": "wild-server",
+      "files": [
+        "SYNTHETIC-wild-server.pem"
+      ],
+      "service": "HTTPS",
+      "hostname": "a.wild.example.test"
+    },
+    {
+      "name": "forged-synology",
+      "files": [
+        "forged-synology.pem"
+      ],
+      "service": "Synology DSM (HTTPS)",
+      "hostname": "nas.example.test"
+    },
+    {
+      "name": "forged-pve",
+      "files": [
+        "forged-pve.pem"
+      ],
+      "service": "Proxmox VE (HTTPS)",
+      "hostname": "pve.example.test"
+    }
+  ]
+}

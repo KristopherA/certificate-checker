@@ -1,0 +1,70 @@
+{
+  "case": "rdg-selfsigned",
+  "chain_sha256": [
+    "5F:2A:10:F0:0B:EB:E0:7C:7B:31:D3:77:E4:83:09:DF:EC:AA:87:87:06:35:9C:3D:64:D7:D0:C2:63:E2:E5:0C"
+  ],
+  "findings": [
+    {
+      "id": "rdg-selfsigned",
+      "kind": "rdg-cert",
+      "severity": "fail",
+      "title": "RD Gateway presents a self-signed certificate",
+      "topic": "remote"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "remote-thumb",
+      "kind": "thumb",
+      "severity": "info",
+      "title": "Presented certificate thumbprint (SHA-1) 2C359C9A9EB6909B416BA92A9AC89265F5F27A35",
+      "topic": "remote"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 229 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers rdg.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: ECDSA P-256",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: ecdsaWithSHA256",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "rdg.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 443,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "RD Gateway (HTTPS)"
+}

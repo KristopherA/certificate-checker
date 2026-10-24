@@ -1,0 +1,78 @@
+{
+  "case": "winrm-cn",
+  "chain_sha256": [
+    "EE:36:3C:2B:53:3E:4D:C4:F4:15:CB:20:C7:0B:4F:43:58:D0:F1:72:B6:6F:EE:C4:C4:5C:92:AB:8E:60:B7:12",
+    "A0:D2:23:74:04:C1:8F:2C:D1:43:B4:F2:10:D8:07:7E:AE:25:31:A4:7F:84:92:EA:0A:60:E2:ED:91:50:26:B4"
+  ],
+  "findings": [
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "winrm-cn",
+      "kind": "winrm-cert",
+      "severity": "warning",
+      "title": "Certificate CN other.example.test differs from winrm.example.test",
+      "topic": "remote"
+    },
+    {
+      "id": "remote-thumb",
+      "kind": "thumb",
+      "severity": "info",
+      "title": "Presented certificate thumbprint (SHA-1) 958AB094C927B38922EAE21EE6E526B7BC4D29AC",
+      "topic": "remote"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 229 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers winrm.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: ECDSA P-256",
+      "topic": "weakKey"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: ecdsaWithSHA256",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "winrm.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 5986,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "WinRM HTTPS"
+}

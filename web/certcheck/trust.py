@@ -77,7 +77,7 @@ class TrustResult:
     openssl_ok: bool
     error_code: int = 0  # OpenSSL X509_V_ERR_* number, 0 when verified
     policy: tuple[str, ...] = ()  # explicit policy failures applied on top of OpenSSL
-    engine: str = ""  # "OpenSSL 3.5.7 (/usr/bin/openssl)"
+    engine: str = ""  # "OpenSSL 3.5.7": version only, never the local binary path (review S7)
 
 
 def _pem(c: Cert) -> bytes:
@@ -104,7 +104,7 @@ def verify(
         exe, version = openssl_binary()
     except OpenSSLMissing as e:
         return TrustResult(False, f"Trust not evaluated: {e}", False, -1)
-    engine = f"OpenSSL {version} ({exe})"
+    engine = f"OpenSSL {version}"
     host = (hostname or "").strip().strip(".").lower()
     tmp = Path(tempfile.mkdtemp(prefix="certcheck-"))
     try:

@@ -71,7 +71,10 @@ ALLOWED_HOSTS = (
     "pythonhosted.org",
     "noreply.github.com",
     "Xcode.app",
-)  # Xcode.app: the DEVELOPER_DIR default in record-golden.sh
+    "mask.icloud.com",
+    "mask-h2.icloud.com",
+)  # Xcode.app: the DEVELOPER_DIR default in record-golden.sh. mask*.icloud.com: Apple's public Private Relay
+# hosts, named in the split-DNS advice exactly as in Resolution.swift.
 EMAIL = re.compile(rb"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)")
 
 

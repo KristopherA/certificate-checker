@@ -107,9 +107,10 @@ def test_version_parse(text: str, ok: bool) -> None:
 def test_engine_in_detail() -> None:
     exe, version = trust.openssl_binary()
     r = trust.verify(chain("good"), hostname=None, purpose=Purpose.ANY, now=NOW, anchors=CA / "root.pem")
-    assert r.engine == f"OpenSSL {version} ({exe})"
-    assert r.engine in (trust.finding(r, "offline").detail or "")
-    assert os.path.isabs(exe)
+    assert r.engine == f"OpenSSL {version}"
+    detail = trust.finding(r, "offline").detail or ""
+    assert r.engine in detail
+    assert os.path.isabs(exe) and exe not in detail  # review S7: no local paths in findings
 
 
 def test_hostname_is_case_insensitive() -> None:

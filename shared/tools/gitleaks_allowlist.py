@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
-"""Keep the private-key allowlist in .gitleaks.toml equal to the fixture files that hold a test key.
+"""Keep .gitleaks.toml's allowlists exact: generated private-key list, pinned key contents, no regex paths.
 
-The block between the BEGIN/END markers in <app>/.gitleaks.toml is generated: one exact, anchored
-path per file under Tests/Fixtures/ and shared/fixtures/ that matches gitleaks' private-key rule.
-Paths are written as gitleaks sees them when run from the public repo root (Tests/..., shared/...),
-in both layouts (<app> is found by swift_root.py). Every other exact path in the config must also
-name an existing file, so a renamed or deleted fixture cannot leave a stale exemption behind.
+The block between the BEGIN/END markers is generated: one exact, anchored path per file under
+Tests/Fixtures/ and shared/fixtures/ that matches gitleaks' private-key rule, each followed by the
+SHA-256 of the one key block that file holds. Paths are written as gitleaks sees them when run
+from the public repo root (Tests/..., shared/...), in both layouts.
+
+--check parses the config with tomllib and fails when:
+  * the config is missing or is not valid TOML;
+  * [extend] useDefault is not true (the default rules would silently disappear);
+  * a top-level [[allowlists]] / [allowlist] exists (it would exempt files from every rule);
+  * any allowlist path is not one exact, anchored file name (^literal$), or names no existing file;
+  * a listed key file holds anything but exactly one private-key block, or a different one than pinned;
+  * the generated block differs from the fixture tree.
 
   gitleaks_allowlist.py           print the generated block
-  gitleaks_allowlist.py --check   exit 1 if the config's block or exact paths drifted from the tree
+  gitleaks_allowlist.py --check   exit 1 with one line per problem
   gitleaks_allowlist.py --write   rewrite the block in place
-Standard library only; web/tests/test_catalogue.py runs --check.
+The config is <app>/.gitleaks.toml (working copy: Source/.gitleaks.toml) or <root>/.gitleaks.toml;
+see find_config. Standard library only (Python 3.11+ for tomllib); web/tests/test_catalogue.py runs --check.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from swift_root import REPO_ROOT, SymlinkedSources, find_swift_root  # noqa: E402
@@ -28,7 +38,22 @@ END = "  # END generated\n"
 PRIVATE_KEY = re.compile(
     rb"(?i)-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY(?: BLOCK)?-----[\s\S-]{64,}?KEY(?: BLOCK)?-----"
 )
-EXACT = re.compile(r"'''\^(.+?)\$'''")
+# One literal file path: ^, then only plain characters or backslash-escaped ones, then $.
+EXACT_PATH = re.compile(r"\^((?:[A-Za-z0-9_/-]|\\[^A-Za-z0-9])+)\$")
+PINNED = re.compile(r"'''\^(.+?)\$''',\s*# sha256 ([0-9a-f]{64})")
+
+
+class ConfigError(Exception):
+    pass
+
+
+def find_config(repo: Path = REPO_ROOT) -> Path | None:
+    """<app>/.gitleaks.toml first (the working copy keeps it in Source/), then <root>/.gitleaks.toml."""
+    app = find_swift_root(repo)
+    for d in (app, repo):
+        if d is not None and (d / ".gitleaks.toml").is_file():
+            return d / ".gitleaks.toml"
+    return None
 
 
 def roots(repo: Path) -> list[tuple[Path, str]]:
@@ -39,56 +64,113 @@ def roots(repo: Path) -> list[tuple[Path, str]]:
     return out
 
 
-def key_files(repo: Path) -> list[str]:
-    found = []
-    for base, public in roots(repo):
-        for f in sorted(base.rglob("*")):
-            if f.is_file() and PRIVATE_KEY.search(f.read_bytes()):
-                found.append(f"{public}/{f.relative_to(base).as_posix()}")
-    return sorted(found)
-
-
-def block(repo: Path) -> str:
-    lines = "".join(f"  '''^{re.escape(p)}$''',\n" for p in key_files(repo))
-    return BEGIN + lines + END
-
-
 def to_disk(repo: Path, public: str) -> Path:
     app = find_swift_root(repo) or repo
     return (app if public.startswith("Tests/") else repo) / public
 
 
+def key_blocks(path: Path) -> list[bytes]:
+    return PRIVATE_KEY.findall(path.read_bytes())
+
+
+def key_files(repo: Path) -> list[tuple[str, Path]]:
+    found = []
+    for base, public in roots(repo):
+        for f in sorted(base.rglob("*")):
+            if f.is_file() and key_blocks(f):
+                found.append((f"{public}/{f.relative_to(base).as_posix()}", f))
+    return sorted(found)
+
+
+def digest(path: Path) -> str:
+    """SHA-256 of the file's key blocks (exactly one for a valid fixture)."""
+    return hashlib.sha256(b"\n".join(key_blocks(path))).hexdigest()
+
+
+def block(repo: Path) -> str:
+    lines = "".join(f"  '''^{re.escape(p)}$''',  # sha256 {digest(f)}\n" for p, f in key_files(repo))
+    return BEGIN + lines + END
+
+
+def unescape(pattern: str) -> str:
+    return re.sub(r"\\(.)", r"\1", pattern)
+
+
+def parse(text: str) -> dict[str, Any]:
+    try:
+        import tomllib
+    except ModuleNotFoundError as e:  # Python < 3.11
+        raise ConfigError("needs Python 3.11+ (tomllib)") from e
+    try:
+        return tomllib.loads(text)
+    except tomllib.TOMLDecodeError as e:
+        raise ConfigError(f"not valid TOML: {e}") from e
+
+
+def problems(repo: Path, cfg: Path, text: str) -> list[str]:
+    data = parse(text)
+    errors: list[str] = []
+    if data.get("extend", {}).get("useDefault") is not True:
+        errors.append("[extend] useDefault must be true (otherwise the default rules are dropped)")
+    for key in ("allowlist", "allowlists"):
+        if key in data:
+            errors.append(f"top-level [{key}] is not allowed: put each allowlist inside the rule it silences")
+    listed: dict[str, list[str]] = {}
+    for rule in data.get("rules", []):
+        rid = str(rule.get("id", "?"))
+        for al in rule.get("allowlists", []) + ([rule["allowlist"]] if "allowlist" in rule else []):
+            paths = al.get("paths", [])
+            if not paths:
+                errors.append(f"rule {rid}: allowlist without exact paths would apply to every file")
+            if al.get("regexes") and al.get("condition", "OR").upper() != "AND":
+                errors.append(f"rule {rid}: allowlist regexes need condition = \"AND\" with its paths")
+            for p in paths:
+                m = EXACT_PATH.fullmatch(p)
+                if m is None:
+                    errors.append(f"rule {rid}: path {p!r} is not one exact, anchored file (^literal$)")
+                    continue
+                public = unescape(m.group(1))
+                listed.setdefault(rid, []).append(public)
+                if not to_disk(repo, public).is_file():
+                    errors.append(f"rule {rid}: allowlisted path {public} does not exist")
+    pinned = {unescape(p): h for p, h in PINNED.findall(text)}
+    for public in listed.get("private-key", []):
+        f = to_disk(repo, public)
+        if not f.is_file():
+            continue
+        n = len(key_blocks(f))
+        if n != 1:
+            errors.append(f"{public}: holds {n} private-key blocks; a fixture must hold exactly one")
+        elif pinned.get(public) != digest(f):
+            errors.append(f"{public}: key block differs from the pinned sha256; run --write if the change is intended")
+    head, rest = text.split(BEGIN, 1)
+    _, tail = rest.split(END, 1)
+    if head + block(repo) + tail != text:
+        errors.append("private-key allowlist differs from the fixture tree; run gitleaks_allowlist.py --write")
+    return errors
+
+
 def main(argv: list[str]) -> int:
     repo = REPO_ROOT
     try:
-        app = find_swift_root(repo)
-    except SymlinkedSources as e:
-        print(e, file=sys.stderr)
+        cfg = find_config(repo)
+        if "--check" not in argv and "--write" not in argv:
+            sys.stdout.write(block(repo))
+            return 0
+        if cfg is None:
+            raise ConfigError(f"no .gitleaks.toml under {repo} (looked next to Sources/ and at the root)")
+        text = cfg.read_text("utf-8")
+        if BEGIN not in text or END not in text:
+            raise ConfigError(f"{cfg}: generated block markers missing")
+        if "--write" in argv:
+            head, rest = text.split(BEGIN, 1)
+            _, tail = rest.split(END, 1)
+            cfg.write_text(head + block(repo) + tail, "utf-8")
+            return 0
+        errors = problems(repo, cfg, text)
+    except (SymlinkedSources, ConfigError, OSError, UnicodeDecodeError) as e:
+        print(f"gitleaks_allowlist: {e}", file=sys.stderr)
         return 1
-    if "--check" not in argv and "--write" not in argv:
-        sys.stdout.write(block(repo))
-        return 0
-    if app is None:
-        print(f"no Swift sources under {repo}: cannot locate .gitleaks.toml", file=sys.stderr)
-        return 1
-    cfg = app / ".gitleaks.toml"
-    text = cfg.read_text()
-    if BEGIN not in text or END not in text:
-        print(f"{cfg}: generated block markers missing", file=sys.stderr)
-        return 1
-    head, rest = text.split(BEGIN, 1)
-    _, tail = rest.split(END, 1)
-    new = head + block(repo) + tail
-    if "--write" in argv:
-        cfg.write_text(new)
-        return 0
-    errors = []
-    if new != text:
-        errors.append("private-key allowlist differs from the fixture tree; run gitleaks_allowlist.py --write")
-    for m in EXACT.finditer(text):
-        public = re.sub(r"\\(.)", r"\1", m.group(1))
-        if not to_disk(repo, public).is_file():
-            errors.append(f"allowlisted path {public} does not exist")
     for msg in errors:
         print(f"{cfg}: {msg}", file=sys.stderr)
     return 1 if errors else 0

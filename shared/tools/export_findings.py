@@ -43,7 +43,7 @@ HELPERS: dict[str, dict[str, dict]] = {
 }
 FINDING = {"args": ["topic", "title", "detail"]}
 MAC_ONLY_FILES = {"CodeSign.swift"}
-MAC_ONLY_IDS = re.compile(r"^(pkg|codesign|split-dns|private-relay)")
+MAC_ONLY_IDS = re.compile(r"^(pkg|codesign|private-relay)")  # split-dns has a web port (M2)
 
 
 def read_string(src: str, i: int) -> tuple[str, int]:

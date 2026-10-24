@@ -11,7 +11,8 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 DERIVED="${DERIVED:-$HOME/Library/Caches/CertificateChecker/DerivedData}"
 STAGE="$(mktemp -d)"; LOG="$(mktemp)"; trap 'rm -rf "$STAGE" "$LOG"' EXIT
 (cd "$SRC" && xcodegen generate --quiet)
-if ! TEST_RUNNER_CC_GOLDEN_OUT="$STAGE" TEST_RUNNER_CC_GOLDEN_FIXTURES="$FX" TEST_RUNNER_CERTCHECK_CONFIG=none \
+if ! TEST_RUNNER_CC_GOLDEN_OUT="$STAGE" TEST_RUNNER_CC_GOLDEN_FIXTURES="$FX" TEST_RUNNER_CC_GOLDEN_ADJUST_FIXTURES="$REPO/shared/fixtures/adjust" \
+  TEST_RUNNER_CERTCHECK_CONFIG=none \
   TEST_RUNNER_TZ=UTC TEST_RUNNER_LANG=en_US.UTF-8 TEST_RUNNER_LC_ALL=en_US.UTF-8 \
   xcodebuild -project "$SRC/CertificateChecker.xcodeproj" -scheme CertificateChecker -derivedDataPath "$DERIVED" \
   -destination 'platform=macOS,arch=arm64' CODE_SIGN_IDENTITY=- \
@@ -19,11 +20,18 @@ if ! TEST_RUNNER_CC_GOLDEN_OUT="$STAGE" TEST_RUNNER_CC_GOLDEN_FIXTURES="$FX" TES
   -only-testing:CertificateCheckerTests/GoldenExportTests test >"$LOG" 2>&1; then
   grep -E 'error:|failed' "$LOG" | head -20; echo "golden recording FAILED"; exit 1
 fi
-n="$(find "$STAGE" -name '*.json' | wc -l | tr -d ' ')"
+n="$(find "$STAGE" -maxdepth 1 -name '*.json' | wc -l | tr -d ' ')"
 [ "$n" -gt 0 ] || { echo "no golden files written (was the test skipped?)"; exit 1; }
 rm -rf "$OUT"; mkdir -p "$OUT"
 # Normalise: 2-space indent, sorted keys, trailing newline (stable diffs across Foundation versions).
 for f in "$STAGE"/*.json; do
   python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); open(sys.argv[2],"w").write(json.dumps(d,indent=2,sort_keys=True,ensure_ascii=False)+"\n")' "$f" "$OUT/$(basename "$f")"
 done
-echo "recorded $n golden verdicts in $OUT"
+# Service adjustments (shared/fixtures/adjust) land in golden/adjust/.
+n2="$(find "$STAGE/adjust" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$n2" -gt 0 ] || { echo "no adjust golden files written"; exit 1; }
+mkdir -p "$OUT/adjust"
+for f in "$STAGE"/adjust/*.json; do
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); open(sys.argv[2],"w").write(json.dumps(d,indent=2,sort_keys=True,ensure_ascii=False)+"\n")' "$f" "$OUT/adjust/$(basename "$f")"
+done
+echo "recorded $n golden verdicts and $n2 adjustments in $OUT"

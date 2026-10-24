@@ -1,0 +1,71 @@
+{
+  "case": "registry-server",
+  "chain_sha256": [
+    "49:5F:66:88:1F:42:9D:ED:17:A0:93:9C:F1:1E:7E:D4:5C:8C:39:E8:E6:00:3C:4B:13:D2:76:81:A8:6E:CF:E3",
+    "2F:2D:7B:BD:58:82:19:21:2C:EE:75:37:6A:D7:75:31:E9:FB:27:17:5F:75:5C:47:69:E6:1C:35:2A:CB:A2:A8"
+  ],
+  "findings": [
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "reg-tls",
+      "kind": "registry-cert",
+      "severity": "info",
+      "title": "Docker registry TLS endpoint registry.example.test:443",
+      "topic": "stack"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 280 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers registry.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "registry.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 443,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Docker registry (HTTPS)"
+}

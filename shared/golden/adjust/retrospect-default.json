@@ -1,0 +1,84 @@
+{
+  "case": "retrospect-default",
+  "chain_sha256": [
+    "B2:16:19:08:AD:6D:66:C8:FD:0C:D7:3C:EA:EA:37:B5:4E:CE:54:0C:A6:A0:E8:09:2A:5C:4B:DD:F0:00:44:91"
+  ],
+  "findings": [
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "fail",
+      "title": "Certificate does not cover retro.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "retro-default",
+      "kind": "retro-cert",
+      "severity": "warning",
+      "title": "Retrospect console default certificate",
+      "topic": "vendor"
+    },
+    {
+      "id": "san",
+      "kind": "",
+      "severity": "warning",
+      "title": "Leaf has no Subject Alternative Name",
+      "topic": "noSAN"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "info",
+      "title": "No extended key usage extension",
+      "topic": "eku"
+    },
+    {
+      "id": "retro-scope",
+      "kind": "",
+      "severity": "info",
+      "title": "Checked the Retrospect web console only",
+      "topic": "vendor"
+    },
+    {
+      "id": "vendor-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint B2:16:19:08:AD:6D:66:C8:FD:0C:D7:3C:EA:EA:37:B5:4E:CE:54:0C:A6:A0:E8:09:2A:5C:4B:DD:F0:00:44:91",
+      "topic": "vendor"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 3565 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "retro.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 443,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Retrospect web console (HTTPS)"
+}

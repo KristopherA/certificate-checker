@@ -1,0 +1,77 @@
+{
+  "case": "pbs-selfsigned",
+  "chain_sha256": [
+    "82:FA:3B:07:B2:C3:F2:4E:E5:D1:B1:0C:9E:E0:30:51:DA:73:6E:5F:32:CA:D3:15:8B:C2:92:6B:77:80:8C:33"
+  ],
+  "findings": [
+    {
+      "id": "pbs-pin",
+      "kind": "pbs-pin",
+      "severity": "warning",
+      "title": "No fingerprint pin given for a self-signed PBS certificate",
+      "topic": "appliance"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "appl-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 82:FA:3B:07:B2:C3:F2:4E:E5:D1:B1:0C:9E:E0:30:51:DA:73:6E:5F:32:CA:D3:15:8B:C2:92:6B:77:80:8C:33",
+      "topic": "appliance"
+    },
+    {
+      "id": "pbs-selfsigned",
+      "kind": "pbs-cert",
+      "severity": "info",
+      "title": "Proxmox Backup Server self-signed certificate (default)",
+      "topic": "appliance"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 280 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers pbs.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "pbs.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 8007,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Proxmox Backup Server (HTTPS)"
+}

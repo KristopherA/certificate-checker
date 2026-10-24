@@ -209,15 +209,28 @@ def test_own_port_denied_on_container_addresses() -> None:
         pol.check("::", 8080)
 
 
-def test_policy_from_env_reads_container_addresses(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: [(socket.AF_INET, 1, 6, "", ("10.0.0.7", 0))])
-    assert probe.TargetPolicy.from_env({}).own_addresses == {ipaddress.ip_address("10.0.0.7")}
+def test_policy_from_env_reads_container_addresses_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[object] = []
 
     def fail(*a: object, **k: object) -> list[object]:
+        calls.append(a)
         raise OSError("no name")
 
-    monkeypatch.setattr(socket, "getaddrinfo", fail)
-    assert probe.TargetPolicy.from_env({}).own_addresses == frozenset()
+    def ok(*a: object, **k: object) -> list[object]:
+        calls.append(a)
+        return [(socket.AF_INET, 1, 6, "", ("10.0.0.7", 0))]
+
+    probe.forget_container_addresses()
+    try:
+        monkeypatch.setattr(socket, "getaddrinfo", fail)
+        assert probe.TargetPolicy.from_env({}).own_addresses == frozenset()  # failure: not cached
+        monkeypatch.setattr(socket, "getaddrinfo", ok)
+        assert probe.TargetPolicy.from_env({}).own_addresses == {ipaddress.ip_address("10.0.0.7")}
+        monkeypatch.setattr(socket, "getaddrinfo", fail)
+        assert probe.TargetPolicy.from_env({}).own_addresses == {ipaddress.ip_address("10.0.0.7")}  # cached
+        assert len(calls) == 2
+    finally:
+        probe.forget_container_addresses()
 
 
 def teredo(server: str, client: str, port: int = 40000) -> str:

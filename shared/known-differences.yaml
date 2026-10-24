@@ -23,7 +23,75 @@ fixture_differences:
     reason: >-
       Leaf whose only EKU is anyExtendedKeyUsage. The Mac's eku check accepts it; SecTrust still
       rejects it for SSL, so both sides report trust fail. Web picks the stricter behaviour in both
-      places: analysis fails the eku check and trust.tls_policy rejects it. Downgrade rules are M2.
+      places: analysis fails the eku check and trust.tls_policy rejects it (and rule 4 of the downgrade rule
+      below means it is never softened).
+
+
+# Service adjusters (shared/fixtures/adjust, goldens in shared/golden/adjust; web/tests/test_adjust_parity.py).
+# The web downgrade rule (certcheck.adjust.may_downgrade) softens a trust failure only when ALL four hold:
+#   1. in date: every presented certificate is inside its validity dates;
+#   2. signature verifies: each certificate is signed by the next, and the top one is self-signed with a valid
+#      self-signature or is (signed by) a supplied anchor; a top certificate whose issuer was not sent never counts;
+#   3. DNS SAN covers the host: never the Common Name, never for an IP address;
+#   4. never on EKU failure: no eku finding failed.
+# The Mac needs only 1 and 2 (and its check 2 accepts a leaf sent alone, see forged-*), so these cases stay "fail".
+adjust_differences:
+  - case: hp-default
+    mac: [["trust", "warning", "trust"]]
+    web: [["trust", "fail", "trust"]]
+    reason: >-
+      No DNS SAN covers the host (vendor default with only a Common Name). The Mac downgrades an untrusted
+      in-date, correctly signed self-signed certificate to a warning; web downgrades only when a DNS SAN also covers
+      the host, so the trust failure stands (the M2 downgrade rule).
+  - case: hp-hpinc
+    mac: [["trust", "warning", "trust"]]
+    web: [["trust", "fail", "trust"]]
+    reason: >-
+      No DNS SAN covers the host (vendor default with only a Common Name). The Mac downgrades an untrusted
+      in-date, correctly signed self-signed certificate to a warning; web downgrades only when a DNS SAN also covers
+      the host, so the trust failure stands (the M2 downgrade rule).
+  - case: hp-ljname
+    mac: [["trust", "warning", "trust"]]
+    web: [["trust", "fail", "trust"]]
+    reason: >-
+      No DNS SAN covers the host (vendor default with only a Common Name). The Mac downgrades an untrusted
+      in-date, correctly signed self-signed certificate to a warning; web downgrades only when a DNS SAN also covers
+      the host, so the trust failure stands (the M2 downgrade rule).
+  - case: retrospect-default
+    mac: [["trust", "warning", "trust"]]
+    web: [["trust", "fail", "trust"]]
+    reason: >-
+      No DNS SAN covers the host (vendor default with only a Common Name). The Mac downgrades an untrusted
+      in-date, correctly signed self-signed certificate to a warning; web downgrades only when a DNS SAN also covers
+      the host, so the trust failure stands (the M2 downgrade rule).
+  - case: rdp-nosan
+    mac: [["trust", "warning", "trust"]]
+    web: [["trust", "fail", "trust"]]
+    reason: >-
+      No DNS SAN covers the host (vendor default with only a Common Name). The Mac downgrades an untrusted
+      in-date, correctly signed self-signed certificate to a warning; web downgrades only when a DNS SAN also covers
+      the host, so the trust failure stands (the M2 downgrade rule).
+  - case: rdp-clientauth
+    mac: [["trust", "warning", "trust"]]
+    web: [["trust", "fail", "trust"]]
+    reason: >-
+      The leaf's EKU is clientAuth only, so the eku check fails. The Mac's Remote adjuster still downgrades the
+      self-signed trust failure; web never downgrades on an EKU failure.
+  - case: forged-synology
+    mac: [["trust", "warning", "trust"]]
+    web: [["trust", "fail", "trust"]]
+    reason: >-
+      Forged issuer (review B1): a leaf for the host whose issuer NAME is Synology's factory CA, signed by an
+      unrelated key and sent alone. The Mac's ChainCheck.verify anchors on the last presented certificate, so a
+      lone leaf "verifies" against itself and the DSM adjuster downgrades the trust failure. Web requires the top
+      certificate to be self-signed or to chain to a supplied anchor (rule 2), so the failure stands. This is a
+      Mac bug, to be fixed separately in Swift; this entry must then be deleted.
+  - case: forged-pve
+    mac: [["trust", "warning", "trust"]]
+    web: [["trust", "fail", "trust"]]
+    reason: >-
+      Forged issuer (review B1): as forged-synology, with the Proxmox VE cluster-CA issuer name on a leaf for
+      the host and no fingerprint pin. The Mac's PVE adjuster downgrades; web keeps the failure (rule 2).
 
 # Differences that the fixture cases do not exercise. Documented, not tested.
 general:
@@ -45,7 +113,7 @@ general:
       Common Name is never used. Fixtures ip-only-san-cn-host and email-only-san-cn-host cover this.
   - topic: trust
     text: >-
-      Web needs OpenSSL 3 or newer (path and version are shown in trust finding details). The
+      Web needs OpenSSL 3 or newer (its version, never the binary path, is shown in trust finding details). The
       container pins /usr/bin/openssl; Mac runs use Homebrew (currently 4.0.2). Goldens are checked
       here against whichever OpenSSL runs the tests; CI parity must run on the pinned container
       OpenSSL (M7).
@@ -72,9 +140,28 @@ general:
       therefore be trusted on the Mac but not on web.
   - topic: connection
     text: >-
-      The Mac reports the TLS version as "TLS 1.2"; web uses Python's names ("TLSv1.2"). Mac-only
-      probe findings (split-DNS via scutil, Private Relay, firewall hint) are not ported; the
-      split-DNS check against /etc/resolv.conf arrives with the Docker DNS work.
+      The Mac reports the TLS version as "TLS 1.2"; web uses Python's names ("TLSv1.2"), except in
+      vendor finding text, which uses the Mac names. Split-DNS (split-dns): the Mac compares against
+      the scutil resolver configuration; web compares the resolved addresses against the nameservers in
+      /etc/resolv.conf (internal nameserver, all-public answers) and names `dig @ns` vs `getent hosts`.
+      Web cannot see iCloud Private Relay itself, so there is no private-relay finding; the split-dns
+      detail mentions it for a Docker Desktop host on a Mac. The firewall hint has the same id, text and
+      trigger on both.
+  - topic: connection
+    text: >-
+      STARTTLS/upgrade dialogues (SMTP, IMAP, POP3, LDAP, MySQL SSLRequest, RDP X.224) send the same
+      bytes and report the same messages as the Mac. Web caps a server reply line at 64 KB (the Mac
+      has no cap) and reports a longer line as a protocol failure.
+  - topic: trust
+    text: >-
+      Trust titles after a Remote-adjuster re-evaluation say "Chain trusted (X.509 policy)" / "Not
+      trusted (X.509 policy)" on web, without "by macOS". Pin matching (Proxmox) and the supplied-CA
+      comparison (Stack) downgrade only under the same strict rule as every other downgrade (the four
+      rules at the top of adjust_differences); a pin match never bypasses them.
+  - topic: general
+    text: >-
+      Deferred from M2: the Docker registry /v2/ API probe and WinRM HTTP (5985) opt-in checks, and the
+      per-service Guidance text shown in the Mac app.
   - topic: general
     text: >-
       PKCS#7 bundles and PFX/P12 files are not read by web in M1 (M3, offline checks).

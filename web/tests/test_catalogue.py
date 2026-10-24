@@ -165,13 +165,37 @@ def test_row_correlated_ternaries_are_resolved() -> None:
     assert not any("?" in t for t in titles)
 
 
+def gitleaks_allowlist_module(shared: Path) -> ModuleType:
+    """shared/tools/gitleaks_allowlist.py (imports swift_root from its own folder)."""
+    spec = importlib.util.spec_from_file_location("gitleaks_allowlist", shared / "tools" / "gitleaks_allowlist.py")
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_gitleaks_config_found_in_both_layouts(shared: Path, tmp_path: Path) -> None:
+    """find_config sees Source/.gitleaks.toml (working copy) and <root>/.gitleaks.toml (public repo)."""
+    find = gitleaks_allowlist_module(shared).find_config
+    working, public, root_only = (tmp_path / n for n in ("working", "public", "root_only"))
+    (working / "Source" / "Sources").mkdir(parents=True)
+    (working / "Source" / ".gitleaks.toml").write_text("")
+    (public / "Sources").mkdir(parents=True)
+    (public / ".gitleaks.toml").write_text("")
+    (root_only / "Source" / "Sources").mkdir(parents=True)
+    (root_only / ".gitleaks.toml").write_text("")
+    assert find(working) == (working / "Source" / ".gitleaks.toml").resolve()
+    assert find(public) == public / ".gitleaks.toml" or find(public) == (public / ".gitleaks.toml").resolve()
+    assert find(root_only) == root_only / ".gitleaks.toml"
+    assert find(tmp_path) is None
+
+
 def test_gitleaks_allowlist_matches_fixtures(shared: Path) -> None:
-    """The private-key allowlist in .gitleaks.toml lists exactly the fixture files holding a test key,
-    and every exact path it names exists (shared/tools/gitleaks_allowlist.py --check)."""
-    app = swift_root_module(shared).find_swift_root(shared.parent)
-    if app is None or not (app / ".gitleaks.toml").is_file():
+    """.gitleaks.toml is valid, keeps the default rules, allowlists only exact existing files, and its
+    private-key list pins exactly the fixture key blocks (shared/tools/gitleaks_allowlist.py --check)."""
+    if gitleaks_allowlist_module(shared).find_config(shared.parent) is None:
         if os.environ.get("CI"):
-            pytest.fail("CI is set but .gitleaks.toml (next to Sources/) is missing: the allowlist gate cannot run")
+            pytest.fail("CI is set but .gitleaks.toml (Source/ or repo root) is missing: the allowlist gate cannot run")
         pytest.skip(".gitleaks.toml not present")
     r = subprocess.run(
         [sys.executable, str(shared / "tools" / "gitleaks_allowlist.py"), "--check"],
@@ -180,3 +204,20 @@ def test_gitleaks_allowlist_matches_fixtures(shared: Path) -> None:
         check=False,
     )
     assert r.returncode == 0, r.stderr
+
+
+def test_every_web_finding_id_is_catalogued() -> None:
+    """Every literal Finding("id", ...) in web/certcheck has a catalogue entry (ids with {holes} match by prefix)."""
+    import re
+
+    pkg = Path(__file__).resolve().parents[1] / "certcheck"
+    cat = load_catalogue().entries
+    exact = {e.id for e in cat}
+    prefixes = {e.id.split("{")[0] for e in cat if "{" in e.id}
+    lit = re.compile(r'Finding\(\s*"([a-z0-9][a-z0-9-]*)"')
+    missing = set()
+    for p in pkg.glob("*.py"):
+        for i in lit.findall(p.read_text("utf-8")):
+            if i not in exact and not any(i.startswith(x) for x in prefixes if x):
+                missing.add(f"{p.name}:{i}")
+    assert not missing, sorted(missing)

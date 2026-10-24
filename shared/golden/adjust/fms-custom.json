@@ -1,0 +1,71 @@
+{
+  "case": "fms-custom",
+  "chain_sha256": [
+    "16:AB:30:D7:71:86:95:B8:32:E2:DA:AD:C1:16:4F:DF:BC:D9:17:83:70:A5:4B:48:E7:3A:F9:2A:1D:9E:4B:D5",
+    "38:53:95:0E:0F:76:95:A0:23:8A:BD:E2:93:65:4A:6D:1A:24:C8:8A:A8:5D:B7:92:66:FD:5F:37:42:97:94:A7"
+  ],
+  "findings": [
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "vendor-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 16:AB:30:D7:71:86:95:B8:32:E2:DA:AD:C1:16:4F:DF:BC:D9:17:83:70:A5:4B:48:E7:3A:F9:2A:1D:9E:4B:D5",
+      "topic": "vendor"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 280 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers fms.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "fms.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 443,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "FileMaker Server (TLS)"
+}

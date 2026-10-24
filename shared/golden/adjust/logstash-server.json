@@ -1,0 +1,71 @@
+{
+  "case": "logstash-server",
+  "chain_sha256": [
+    "1D:F2:64:0D:C6:C2:AA:9C:53:F3:EC:D2:2F:B6:FC:D2:76:41:5B:87:77:56:1E:64:AA:3C:78:47:4B:28:78:7F",
+    "2F:2D:7B:BD:58:82:19:21:2C:EE:75:37:6A:D7:75:31:E9:FB:27:17:5F:75:5C:47:69:E6:1C:35:2A:CB:A2:A8"
+  ],
+  "findings": [
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "beats-tls",
+      "kind": "beats-tls",
+      "severity": "info",
+      "title": "Logstash Beats input TLS on logstash.example.test:5044",
+      "topic": "stack"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 280 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers logstash.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "logstash.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 5044,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Logstash Beats input (TLS)"
+}

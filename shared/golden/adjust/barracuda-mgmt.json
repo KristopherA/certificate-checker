@@ -1,0 +1,70 @@
+{
+  "case": "barracuda-mgmt",
+  "chain_sha256": [
+    "32:E1:92:7C:5C:69:45:78:E8:EF:9C:B2:5B:AD:E1:65:9A:EE:0A:D5:66:F7:2C:DE:6E:BA:98:6E:61:60:C6:99"
+  ],
+  "findings": [
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "waf-default",
+      "kind": "waf-cert",
+      "severity": "warning",
+      "title": "Barracuda factory self-signed certificate on the management UI",
+      "topic": "vendor"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "info",
+      "title": "No extended key usage extension",
+      "topic": "eku"
+    },
+    {
+      "id": "vendor-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 32:E1:92:7C:5C:69:45:78:E8:EF:9C:B2:5B:AD:E1:65:9A:EE:0A:D5:66:F7:2C:DE:6E:BA:98:6E:61:60:C6:99",
+      "topic": "vendor"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 3565 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers localhost",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "localhost",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 8443,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Barracuda WAF management (HTTPS)"
+}

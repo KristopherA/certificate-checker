@@ -1,0 +1,77 @@
+{
+  "case": "forged-pve",
+  "chain_sha256": [
+    "8B:FE:CB:59:BF:FC:B3:1D:AB:88:C1:C5:5E:EB:FF:DF:70:37:7F:84:AC:C5:06:84:E2:E9:3E:A8:92:DC:4D:6C"
+  ],
+  "findings": [
+    {
+      "id": "pve-default",
+      "kind": "pve-cert",
+      "severity": "warning",
+      "title": "Proxmox VE default node certificate (cluster CA)",
+      "topic": "appliance"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "appl-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 8B:FE:CB:59:BF:FC:B3:1D:AB:88:C1:C5:5E:EB:FF:DF:70:37:7F:84:AC:C5:06:84:E2:E9:3E:A8:92:DC:4D:6C",
+      "topic": "appliance"
+    },
+    {
+      "id": "top",
+      "kind": "",
+      "severity": "info",
+      "title": "Bundle stops at an issued certificate",
+      "topic": "chainIncomplete"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 229 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers pve.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: ECDSA P-256",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: ecdsaWithSHA256",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "pve.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 8006,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Proxmox VE (HTTPS)"
+}

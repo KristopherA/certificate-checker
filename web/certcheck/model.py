@@ -34,6 +34,13 @@ class Topic(enum.StrEnum):
     CONNECTION = "connection"
     CSR = "csr"
     GENERAL = "general"
+    WIREGUARD = "wireguard"
+    IPSEC = "ipsec"
+    RADIUS = "radius"
+    REMOTE = "remote"
+    APPLIANCE = "appliance"
+    STACK = "stack"
+    VENDOR = "vendor"
 
 
 class Purpose(enum.StrEnum):

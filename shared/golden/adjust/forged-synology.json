@@ -1,0 +1,77 @@
+{
+  "case": "forged-synology",
+  "chain_sha256": [
+    "05:DF:02:43:65:21:2D:07:42:70:22:88:F8:1E:97:7E:7A:49:AA:35:2E:77:D5:10:3E:D0:4E:69:D2:BD:E4:3F"
+  ],
+  "findings": [
+    {
+      "id": "dsm-default",
+      "kind": "dsm-cert",
+      "severity": "warning",
+      "title": "Synology DSM factory certificate",
+      "topic": "appliance"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "appl-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint 05:DF:02:43:65:21:2D:07:42:70:22:88:F8:1E:97:7E:7A:49:AA:35:2E:77:D5:10:3E:D0:4E:69:D2:BD:E4:3F",
+      "topic": "appliance"
+    },
+    {
+      "id": "top",
+      "kind": "",
+      "severity": "info",
+      "title": "Bundle stops at an issued certificate",
+      "topic": "chainIncomplete"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 229 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers nas.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: ECDSA P-256",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: ecdsaWithSHA256",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "nas.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 5001,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Synology DSM (HTTPS)"
+}

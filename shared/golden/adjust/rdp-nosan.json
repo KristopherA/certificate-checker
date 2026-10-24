@@ -1,0 +1,77 @@
+{
+  "case": "rdp-nosan",
+  "chain_sha256": [
+    "F4:3F:52:E1:A7:DC:91:AF:90:3F:66:BA:35:A7:47:32:E8:42:CB:8B:D5:87:6C:95:EB:73:EA:A4:AB:AE:3F:34"
+  ],
+  "findings": [
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "warning",
+      "title": "rdp.example.test matches only the Common Name",
+      "topic": "hostname"
+    },
+    {
+      "id": "rdp-selfsigned",
+      "kind": "rdp-cert",
+      "severity": "warning",
+      "title": "Self-signed RDP certificate (likely the Windows default)",
+      "topic": "remote"
+    },
+    {
+      "id": "san",
+      "kind": "",
+      "severity": "warning",
+      "title": "Leaf has no Subject Alternative Name",
+      "topic": "noSAN"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "remote-thumb",
+      "kind": "thumb",
+      "severity": "info",
+      "title": "Presented certificate thumbprint (SHA-1) 7924C7BA3F259724AE5C6CCE1EBD475560E86450",
+      "topic": "remote"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows RDP",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 229 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: ECDSA P-256",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: ecdsaWithSHA256",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "rdp.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 3389,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "RDP (TLS)"
+}

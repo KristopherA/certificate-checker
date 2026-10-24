@@ -66,6 +66,64 @@ final class GoldenExportTests: PinnedTestCase {
         }
     }
 
+    /// Records the offline service adjustments (shared/fixtures/adjust) into shared/golden/adjust: the same steps
+    /// as Probe.runSync after the handshake (Analysis, Trust without network, Remote/Appliance/Stack/Vendor),
+    /// with no TLS version (so no tlsver finding). Skipped unless CC_GOLDEN_OUT and CC_GOLDEN_ADJUST_FIXTURES are set.
+    func testRecordAdjustGolden() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let outPath = env["CC_GOLDEN_OUT"], let fxPath = env["CC_GOLDEN_ADJUST_FIXTURES"] else {
+            throw XCTSkip("CC_GOLDEN_OUT / CC_GOLDEN_ADJUST_FIXTURES not set")
+        }
+        continueAfterFailure = false
+        XCTAssertTrue(["UTC", "GMT"].contains(TimeZone.current.identifier), "record with TZ=UTC")
+        let iso = ISO8601DateFormatter()
+        let fx = URL(fileURLWithPath: fxPath), out = URL(fileURLWithPath: outPath).appendingPathComponent("adjust")
+        let manifest = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: fx.appendingPathComponent("cases.json"))) as? [String: Any])
+        let pinned = try XCTUnwrap(manifest["pinned_now"] as? String, "pinned_now missing")
+        let now = try XCTUnwrap(iso.date(from: pinned), "pinned_now is not ISO 8601")
+        let cases = try XCTUnwrap(manifest["cases"] as? [[String: Any]], "cases missing")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        for c in cases {
+            let name = try XCTUnwrap(c["name"] as? String, "case without name")
+            try Self.checkName(name)
+            let host = try XCTUnwrap(c["hostname"] as? String, "\(name): hostname missing")
+            let serviceName = try XCTUnwrap(c["service"] as? String, "\(name): service missing")
+            let service = try XCTUnwrap(Service(rawValue: serviceName), "\(name): unknown service \(serviceName)")
+            let files = try XCTUnwrap(c["files"] as? [String], "\(name): files missing")
+            try files.forEach(Self.checkName)
+            var chain: [Certificate] = []
+            for f in files { chain += try Self.pemBlocks(fx.appendingPathComponent(f)).map { try Certificate(der: $0) } }
+            var target = Target(name: name, host: host, service: service)
+            target.fingerprintPin = c["fingerprint_pin"] as? String
+            var f = Analysis.evaluate(certificates: chain, hostname: target.verifyName, purpose: .tlsServer, now: now)
+            f.append(Trust.finding(Trust.evaluate(chain, hostname: target.verifyName, purpose: .tlsServer, allowNetwork: false, now: now), context: "as presented by server"))
+            f = Remote.adjust(f, chain: chain, target: target, now: now)
+            f = Appliance.adjust(f, chain: chain, target: target, now: now)
+            f = Stack.adjust(f, chain: chain, target: target)
+            f = Vendor.adjust(f, chain: chain, target: target, tlsVersion: nil, now: now)
+            let doc: [String: Any] = [
+                "schema": 1, "case": name, "hostname": host, "service": serviceName, "port": target.port,
+                "pinned_now": pinned, "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+                "findings": f.map { ["id": $0.id, "severity": $0.severity.label.lowercased(), "topic": $0.topic.rawValue, "kind": $0.kind, "title": $0.title] },
+                "chain_sha256": chain.map { $0.sha256 },
+            ]
+            let data = try JSONSerialization.data(withJSONObject: doc, options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: out.appendingPathComponent("\(name).json"))
+        }
+    }
+
+    static func pemBlocks(_ url: URL) throws -> [[UInt8]] {
+        let text = try String(contentsOf: url, encoding: .utf8)
+        var blocks: [[UInt8]] = [], cur: [String]? = nil
+        for line in text.components(separatedBy: "\n") {
+            if line.hasPrefix("-----BEGIN CERTIFICATE") { cur = [] } else if line.hasPrefix("-----END CERTIFICATE") {
+                blocks.append([UInt8](try XCTUnwrap(Data(base64Encoded: (cur ?? []).joined()), "\(url.lastPathComponent) is not PEM"))); cur = nil
+            } else if cur != nil { cur!.append(line.trimmingCharacters(in: .whitespaces)) }
+        }
+        XCTAssertFalse(blocks.isEmpty, "\(url.lastPathComponent): no certificates")
+        return blocks
+    }
+
     /// Names from cases.json become path components; refuse anything that could leave the fixture tree.
     static func checkName(_ s: String) throws {
         if s.isEmpty || s.contains("/") || s.contains("..") || s.hasPrefix(".") {

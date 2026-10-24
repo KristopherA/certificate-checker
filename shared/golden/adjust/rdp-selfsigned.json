@@ -1,0 +1,70 @@
+{
+  "case": "rdp-selfsigned",
+  "chain_sha256": [
+    "FE:29:EC:35:5F:FC:E0:4E:AE:94:2A:A9:A4:4F:2D:8B:8E:6F:17:AB:5B:E0:53:1B:E0:8D:78:E8:A4:C3:01:8B"
+  ],
+  "findings": [
+    {
+      "id": "rdp-selfsigned",
+      "kind": "rdp-cert",
+      "severity": "warning",
+      "title": "Self-signed RDP certificate (likely the Windows default)",
+      "topic": "remote"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "warning",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "remote-thumb",
+      "kind": "thumb",
+      "severity": "info",
+      "title": "Presented certificate thumbprint (SHA-1) F2AAB95C5E79FA5614E6CD2174CBF6B44EDB7172",
+      "topic": "remote"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows RDP",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 229 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers rdp.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: ECDSA P-256",
+      "topic": "weakKey"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: ecdsaWithSHA256",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "rdp.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 3389,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "RDP (TLS)"
+}

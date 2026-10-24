@@ -1,0 +1,85 @@
+{
+  "case": "pve-pin-malformed",
+  "chain_sha256": [
+    "A4:98:34:93:EB:D6:F3:4F:F5:E0:2F:EE:85:E8:C0:7D:CE:D2:DB:DD:57:EF:F5:4D:C6:D0:02:19:A4:95:21:BA",
+    "CB:7F:D3:46:41:0E:BE:06:FC:B6:81:77:CE:6E:DB:40:3B:25:86:0C:9F:1E:27:17:8C:61:2A:38:CE:B8:70:BF"
+  ],
+  "findings": [
+    {
+      "id": "pve-pin",
+      "kind": "pve-pin",
+      "severity": "fail",
+      "title": "Fingerprint pin is not a SHA-256 colon-hex value",
+      "topic": "appliance"
+    },
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "pve-default",
+      "kind": "pve-cert",
+      "severity": "warning",
+      "title": "Proxmox VE default node certificate (cluster CA)",
+      "topic": "appliance"
+    },
+    {
+      "id": "appl-fp",
+      "kind": "fingerprint",
+      "severity": "info",
+      "title": "Presented certificate SHA-256 fingerprint A4:98:34:93:EB:D6:F3:4F:F5:E0:2F:EE:85:E8:C0:7D:CE:D2:DB:DD:57:EF:F5:4D:C6:D0:02:19:A4:95:21:BA",
+      "topic": "appliance"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 280 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers pve1.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "pve1.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 8006,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Proxmox VE (HTTPS)"
+}

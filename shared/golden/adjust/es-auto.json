@@ -1,0 +1,71 @@
+{
+  "case": "es-auto",
+  "chain_sha256": [
+    "A0:F6:EE:A6:14:92:93:7C:CD:5A:8D:BC:42:B5:1E:A3:66:75:EA:78:1A:73:97:4A:A8:6B:A3:0F:EA:4A:E6:69",
+    "B1:1C:27:26:7A:89:6B:16:F7:69:EF:DE:56:76:74:C2:BD:06:71:9E:22:BD:B2:A8:18:10:DD:3B:CC:67:48:14"
+  ],
+  "findings": [
+    {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
+      "id": "es-autoca",
+      "kind": "es-cert",
+      "severity": "warning",
+      "title": "Elasticsearch auto-configured HTTP CA",
+      "topic": "stack"
+    },
+    {
+      "id": "eku",
+      "kind": "",
+      "severity": "pass",
+      "title": "Extended key usage allows tls server",
+      "topic": "eku"
+    },
+    {
+      "id": "exp-0",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf valid for 280 days",
+      "topic": "expiry"
+    },
+    {
+      "id": "host",
+      "kind": "",
+      "severity": "pass",
+      "title": "Certificate covers es.example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "key-strength",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf key: RSA 2048-bit",
+      "topic": "weakKey"
+    },
+    {
+      "id": "order",
+      "kind": "",
+      "severity": "pass",
+      "title": "Chain order is leaf → issuer",
+      "topic": "chainOrder"
+    },
+    {
+      "id": "sig",
+      "kind": "",
+      "severity": "pass",
+      "title": "Leaf signature: sha256WithRSA",
+      "topic": "weakSignature"
+    }
+  ],
+  "hostname": "es.example.test",
+  "pinned_now": "2027-01-15T00:00:00Z",
+  "port": 9200,
+  "recorded_by": "macOS Analysis + Trust (no network) + Remote/Appliance/Stack/Vendor",
+  "schema": 1,
+  "service": "Elasticsearch (HTTPS)"
+}
