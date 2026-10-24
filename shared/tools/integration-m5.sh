@@ -1,6 +1,7 @@
 #!/bin/bash
-# M5 integration: the web app (python -m app on loopback) checks a real OpenSSL TLS server in a throw-away
-# container through its REST API and UI routes, and verifies the server's key and certificate as a PFX upload.
+# M5/M6 integration: the web app (python -m app on loopback, TLS 1.2+ with a self-signed certificate and a login,
+# as M6 serves it) checks a real OpenSSL TLS server in a throw-away container through its REST API and UI routes,
+# and verifies the server key and certificate as a PFX upload.
 #   DOCKER_CONTEXT must be set explicitly (e.g. desktop-linux); this script refuses to guess.
 # Everything is labelled certcheck-test and removed on exit (containers, images, networks, volumes).
 # Only public images are pulled; nothing is built, tagged or pushed. Ports bind to 127.0.0.1.

@@ -13,12 +13,17 @@
 <body>
 <header class="bar">
   <strong>Certificate Checker</strong>
+  {% if nav != "login" %}
   <nav>
     <a href="/" {% if nav == "probe" %}aria-current="page"{% endif %}>Probe</a>
     <a href="/files" {% if nav == "files" %}aria-current="page"{% endif %}>File verify</a>
     <a href="/targets" {% if nav == "targets" %}aria-current="page"{% endif %}>Saved targets</a>
     <a href="/api/v1/openapi.json">API</a>
   </nav>
+  {% endif %}
+  {% if signed_in %}
+  <form method="post" action="/logout" class="logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">Log out</button></form>
+  {% endif %}
 </header>
 <main>
 {% block main %}{% endblock %}

@@ -149,7 +149,7 @@ def test_excess_requests_get_429_without_waiting(tmp_path: Path, monkeypatch: py
         return probe.ProbeResult(probe.Target("www.example.test", 443))
 
     monkeypatch.setattr(check, "run", slow)
-    app = create_app(Settings(config_dir=tmp_path, max_concurrent=2), policy=LOOP)
+    app = create_app(Settings(config_dir=tmp_path, max_concurrent=2, login_required=False), policy=LOOP)
     body = {"host": "www.example.test", "resolve": "10.0.0.1"}
 
     async def go() -> list[int]:

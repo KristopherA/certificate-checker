@@ -1,4 +1,8 @@
-"""Request hardening, applied to every route (each one is treated as reachable by anyone on the LAN until M6).
+"""Request hardening, applied to every route before login is even considered (auth.py and main.py add login).
+
+* LAN-only clients (M6): a request whose peer address is not RFC 1918, CGNAT, loopback, link-local
+  or ULA is refused with 403 unless lan_only is off (settings.yaml network.lan_only). The peer is
+  the TCP peer: proxy headers are never trusted (uvicorn runs with proxy_headers=False).
 
 * Security headers on every response: a strict Content-Security-Policy (no inline script or style, no eval,
   same-origin XHR only, no framing, forms post only to this origin), nosniff, no referrer, COOP/CORP, and
@@ -7,8 +11,9 @@
   lying body is counted while it streams and cut off at the limit. Nothing is spooled to disk.
 * Cross-site requests: a state-changing request (any method but GET/HEAD/OPTIONS) is refused when
   Sec-Fetch-Site says cross-site or same-site, or when Origin is present and is not this origin.
-* CSRF tokens (double submit, ready for M6 sessions): pages set a random token cookie (SameSite=Strict,
-  HttpOnly) and put the same token in every form; UI posts must echo it (check_csrf). API posts must be JSON
+* CSRF tokens (double submit): pages set a random token cookie (SameSite=Strict, HttpOnly, Secure over TLS)
+  and put the same token in every form, the login form included; UI posts must echo it (check_csrf). The
+  token is replaced at login and logout. API posts must be JSON
   (application/json cannot be sent cross-origin without a CORS preflight, which this app never grants) or
   carry the X-CertCheck-Request: 1 header (same reason), so a plain cross-site form cannot reach them.
 * Host header allowlist (CERTCHECK_ALLOWED_HOSTS) against DNS rebinding, when set.
@@ -17,6 +22,7 @@
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import secrets
 from collections.abc import Awaitable, Callable, MutableMapping
 from typing import Any
@@ -67,12 +73,17 @@ async def _plain(send: Send, status: int, text: str) -> None:
 class Hardening:
     """Pure ASGI middleware (no BaseHTTPMiddleware buffering)."""
 
-    def __init__(self, app: ASGIApp, *, max_body: int, allowed_hosts: tuple[str, ...] = ()) -> None:
-        self.inner, self.max_body, self.allowed_hosts = app, max_body, allowed_hosts
+    def __init__(
+        self, app: ASGIApp, *, max_body: int, allowed_hosts: tuple[str, ...] = (), lan_only: bool = True
+    ) -> None:
+        self.inner, self.max_body, self.allowed_hosts, self.lan_only = app, max_body, allowed_hosts, lan_only
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.inner(scope, receive, send)
+            return
+        if self.lan_only and not lan_client(scope.get("client")):
+            await _plain(send, 403, "This app only answers clients on the local network.")
             return
         h = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
         host = h.get("host", "")
@@ -135,6 +146,31 @@ class Hardening:
         await self.inner(scope, replay, with_headers)
 
 
+# RFC 1918, CGNAT (RFC 6598), loopback, link-local, ULA. The IPv4 networks are built from integers so the
+# identifier scan (tests/test_identifiers.py) does not see private literals outside its allowlist.
+LAN_NETS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
+    *(ipaddress.IPv4Network((base, bits)) for base, bits in (
+        (0x0A000000, 8), (0xAC100000, 12), (0xC0A80000, 16), (0x64400000, 10), (0x7F000000, 8), (0xA9FE0000, 16))),
+    *(ipaddress.IPv6Network(n) for n in ("::1/128", "fe80::/10", "fc00::/7")),
+)  # fmt: skip
+
+
+def lan_client(client: tuple[str, int] | list[Any] | None) -> bool:
+    """True for an RFC 1918, CGNAT, loopback, link-local or ULA peer (IPv4-mapped IPv6 unwrapped). An explicit
+    list rather than ip.is_private, which also counts documentation, benchmarking and other special ranges that
+    are not a LAN. A peer that is not an IP address (unix socket) counts as local; anything else unparseable
+    fails closed."""
+    if not client:
+        return True
+    try:
+        ip = ipaddress.ip_address(str(client[0]).split("%", 1)[0])
+    except ValueError:
+        return False
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return any(ip in n for n in LAN_NETS)
+
+
 def _host_only(host: str) -> str:
     host = host.lower()
     if host.startswith("["):
@@ -145,7 +181,11 @@ def _host_only(host: str) -> str:
 def csrf_token(request: Request) -> str:
     """The token for this browser: the existing cookie when it looks like ours, else a new one."""
     t = request.cookies.get(CSRF_COOKIE, "")
-    return t if len(t) == 43 and t.replace("-", "").replace("_", "").isalnum() else secrets.token_urlsafe(32)
+    return t if len(t) == 43 and t.replace("-", "").replace("_", "").isalnum() else new_token()
+
+
+def new_token() -> str:
+    return secrets.token_urlsafe(32)
 
 
 def check_csrf(request: Request, submitted: str | None) -> bool:

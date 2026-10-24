@@ -285,22 +285,41 @@ general:
       password or the file does not parse as PKCS#12.
   - topic: general
     text: >-
-      M5 web UI and REST API (FastAPI, server-rendered Jinja2, vendored htmx 2.0.11; no JS build). Auth,
-      TLS for the UI, LAN bind, rate limits and settings.yaml are M6: until then the app binds 127.0.0.1
-      over plain HTTP (CERTCHECK_BIND to change), only a concurrency cap (CERTCHECK_MAX_CONCURRENT, 429
-      beyond it) limits load, and the CSRF cookie is not Secure unless CERTCHECK_SECURE_COOKIES is set.
+      M5/M6 web UI and REST API (FastAPI, server-rendered Jinja2, vendored htmx 2.0.11; no JS build).
+      Access (M6): one local user; the password is stored only as an argon2id hash, from
+      CERTCHECK_PASSWORD_HASH, CERTCHECK_PASSWORD_HASH_FILE or the Docker secret
+      /run/secrets/certcheck_password_hash (python -m app hash-password makes one), and the app refuses to
+      start without it. Every route except /login, /api/v1/health and /static/ needs a session, including
+      the OpenAPI document at /api/v1/openapi.json. Sessions are random 256-bit ids kept in memory (only
+      their SHA-256), HttpOnly, SameSite=Strict and Secure, idle 30 min and at most 12 h, re-issued with a
+      fresh CSRF token at every login; a restart logs everyone out. Failed logins lock an address out
+      (5 in 15 min, then 15 min; all addresses together get 4 times that), and at most two password checks
+      run at once. The server binds 0.0.0.0:8080 with TLS 1.2+ only (the same server_context the Mac-parity
+      listener uses; TLS 1.0/1.1 handshakes are refused, tested against the real server) from
+      /config/tls/cert.pem + key.pem, or a self-signed EC P-256 certificate generated at first start under
+      $CERTCHECK_STATE/tls (key 0600, reused until 30 days before expiry, SHA-256 fingerprint logged).
+      Clients whose TCP peer is not RFC 1918, CGNAT, loopback, link-local or ULA get 403 (proxy headers
+      are never trusted). Plain HTTP (CERTCHECK_TLS=off) and CERTCHECK_NO_LOGIN are refused unless the
+      bind is loopback. No HSTS header: with a self-signed certificate it would make the browser warning
+      impossible to click through. Live and file checks share a per-address limit (30 a minute) and the
+      concurrency cap (4); beyond either the answer is 429 with Retry-After. /config/settings.yaml
+      (limits, timeouts, login, network, denylist) is read strictly: an unknown key or bad value stops
+      startup; environment variables override it. The denylist (CIDRs probes may not reach) is empty by
+      default and adds to the built-in target policy. /config/ca/*.pem|crt|cer are added to the system
+      trust store for probes and file checks (an unreadable file stops startup); a chain that ends at one
+      of them is reported as chaining to the supplied anchor. CERTCHECK_ANCHORS (a PEM bundle) still
+      replaces the store entirely (tests). State (sessions, lockouts, rate limits, the busy counter)
+      assumes one uvicorn worker with one event loop.
       Every route is hardened as if reachable by anyone on the LAN: strict CSP (default-src 'none',
       script-src 'self', no inline script or style, no eval in htmx), double-submit CSRF tokens on all UI
-      forms, Origin and Sec-Fetch-Site checks on every unsafe request, API POSTs need a JSON body or the
-      X-CertCheck-Request header (both force a CORS preflight), an optional Host allowlist
-      (CERTCHECK_ALLOWED_HOSTS) against DNS rebinding, autoescaped output everywhere, and a 1 MB cap on the
-      whole request body, buffered in memory (stricter than filecheck's 2 MB per file); uploads are never
-      written to disk. Fix guidance is copy-only text; the app never runs it. Exports are data: links, so
-      no result is stored on the server. CERTCHECK_ANCHORS (a PEM bundle) replaces the trust store; the
-      /config/ca directory from the spec is not wired yet. Swagger/ReDoc pages are disabled (they need a
-      CDN and inline script); the OpenAPI document at /api/v1/openapi.json is public by design (it only
-      describes the API and holds no data or secrets; M6 auth will decide whether it stays public). There is
+      forms and the login form, Origin and Sec-Fetch-Site checks on every unsafe request, API POSTs need a
+      JSON body or the X-CertCheck-Request header (both force a CORS preflight), an optional Host allowlist
+      (CERTCHECK_ALLOWED_HOSTS or network.allowed_hosts) against DNS rebinding, autoescaped output
+      everywhere, and a 1 MB cap on the whole request body (limits.max_upload_kb), buffered in memory
+      (stricter than filecheck's 2 MB per file); uploads are never written to disk. Fix guidance is
+      copy-only text; the app never runs it. Exports are data: links, so no result is stored on the
+      server. Swagger/ReDoc pages are disabled (they need a CDN and inline script). There is
       no Referer fallback when Origin is missing: the request is refused when Sec-Fetch-Site is cross-site
       or same-site, or when Origin is present and is not this origin; a request with neither header (curl,
       scripts) passes this check and still needs the CSRF token (UI forms) or the JSON body /
-      X-CertCheck-Request header (API). Browsers that send neither are not supported.
+      X-CertCheck-Request header (API), and a session. Browsers that send neither are not supported.

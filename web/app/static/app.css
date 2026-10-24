@@ -19,3 +19,4 @@ input, select, button { font: inherit; padding: .3em .5em; }
 .fp { font-size: .8em; word-break: break-all; }
 table { border-collapse: collapse; width: 100%; } td, th { text-align: left; padding: .3em .5em; border-bottom: 1px solid #8883; }
 .hidden { display: none; }
+.logout { margin-left: auto; } .login { display: flex; flex-direction: column; gap: .7em; max-width: 22em; }

@@ -1,16 +1,20 @@
-"""M5 end to end: the served app (python -m app, uvicorn on loopback) against a real OpenSSL server in a
-throw-away container (see shared/tools/integration-m5.sh).
+"""M5 and M6 end to end: the served app (python -m app, uvicorn on loopback, with its M6 defaults: TLS 1.2+ on a
+self-signed certificate generated at first start, and login) against a real OpenSSL server in a throw-away
+container (see shared/tools/integration-m5.sh).
 
 Skipped unless the runner exports CERTCHECK_IT_M5_PORT (the server's port) and CERTCHECK_IT_M5_DIR (its
 ca.pem, leaf.pem and leaf.key). The PFX password is generated here and lives only in this process and the
-request; the test asserts it never appears in a response or in the server's log output.
+request; the test asserts it never appears in a response or in the server's log output. So is the login
+password: only its argon2id hash reaches the server, through the environment.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 import re
 import secrets
+import ssl
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -20,6 +24,8 @@ import httpx
 import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives.serialization import BestAvailableEncryption, load_pem_private_key, pkcs12
+
+from app import auth
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from m4_pki import free_port, wait_port  # noqa: E402
@@ -32,12 +38,20 @@ def _env(name: str) -> str:
     return v
 
 
+PASSWORD = secrets.token_urlsafe(18)
+LOCKOUT_FAILURES = 3
+
+
 @pytest.fixture(scope="module")
 def served() -> Iterator[tuple[httpx.Client, int, subprocess.Popen[bytes]]]:
     d = Path(_env("CERTCHECK_IT_M5_DIR"))
     port = free_port()
     env = {**os.environ, "CERTCHECK_PORT": str(port), "CERTCHECK_ANCHORS": str(d / "ca.pem"),
-           "CERTCHECK_PROBE_ALLOW_LOOPBACK": "1", "CERTCHECK_CONFIG": str(d)}  # fmt: skip
+           "CERTCHECK_PROBE_ALLOW_LOOPBACK": "1", "CERTCHECK_CONFIG": str(d), "CERTCHECK_BIND": "127.0.0.1",
+           "CERTCHECK_STATE": str(d / "state"), "CERTCHECK_PASSWORD_HASH": auth.hash_password(PASSWORD)}  # fmt: skip
+    for k in ("CERTCHECK_TLS", "CERTCHECK_NO_LOGIN"):
+        env.pop(k, None)
+    (d / "settings.yaml").write_text(f"login: {{max_failures: {LOCKOUT_FAILURES}}}\n")
     (d / "targets.yaml").write_text(
         f"schema: 1\ntargets:\n  - name: lab\n    host: www.example.test\n    port: {_env('CERTCHECK_IT_M5_PORT')}\n"
         "    connect_ip: 127.0.0.1\n"
@@ -45,7 +59,11 @@ def served() -> Iterator[tuple[httpx.Client, int, subprocess.Popen[bytes]]]:
     p = subprocess.Popen([sys.executable, "-m", "app"], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         wait_port(port, 20)
-        with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=60) as c:
+        trust = ssl.create_default_context(cafile=str(d / "state" / "tls" / "selfsigned.pem"))
+        with httpx.Client(base_url=f"https://localhost:{port}", verify=trust, timeout=60) as c:
+            assert c.get("/").status_code == 303  # not logged in yet: sent to /login
+            r = c.post("/login", data={"csrf_token": _token(c, "/login"), "password": PASSWORD})
+            assert r.status_code == 303 and r.headers["location"] == "/"
             yield c, port, p
     finally:
         p.terminate()
@@ -84,10 +102,46 @@ def test_ui_probe_and_saved_target(served: tuple[httpx.Client, int, subprocess.P
     assert evil.status_code == 403
 
 
+def test_m6_tls_listener_and_cookies(served: tuple[httpx.Client, int, subprocess.Popen[bytes]]) -> None:
+    c, port, _ = served
+    for version, ok in ((ssl.TLSVersion.TLSv1, False), (ssl.TLSVersion.TLSv1_1, False),
+                        (ssl.TLSVersion.TLSv1_2, True), (ssl.TLSVersion.TLSv1_3, True)):  # fmt: skip
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
+        ctx.minimum_version = ctx.maximum_version = version
+        with contextlib.suppress(ssl.SSLError):
+            ctx.set_ciphers("ALL:@SECLEVEL=0")  # the client offers old suites, so only the server can refuse
+        try:
+            with httpx.Client(verify=ctx, timeout=10) as raw:
+                got = raw.get(f"https://127.0.0.1:{port}/api/v1/health").status_code == 200
+        except httpx.ConnectError:
+            got = False
+        assert got is ok, version
+    jar = {cookie.name: cookie for cookie in c.cookies.jar}
+    assert jar[auth.SESSION_COOKIE].secure and jar["certcheck_csrf"].secure
+    with httpx.Client(base_url=f"https://localhost:{port}", verify=False, timeout=10) as anon:  # noqa: S501
+        assert anon.post("/api/v1/check", json={"host": "www.example.test"},
+                         headers={"X-CertCheck-Request": "1"}).status_code == 401  # fmt: skip
+        assert anon.get("/api/v1/health").status_code == 200
+
+
 def test_app_refuses_to_probe_itself(served: tuple[httpx.Client, int, subprocess.Popen[bytes]]) -> None:
     c, own, _ = served
     d = c.post("/api/v1/check", json={"host": "localhost", "port": own, "resolve": "127.0.0.1"}).json()
     assert d["error"] and d["connected_ip"] is None
+
+
+def test_m6_lockout(served: tuple[httpx.Client, int, subprocess.Popen[bytes]]) -> None:
+    """Last: locks 127.0.0.1 out of logging in (the existing session keeps working)."""
+    c, port, _ = served
+    with httpx.Client(base_url=f"https://localhost:{port}", verify=False, timeout=60) as anon:  # noqa: S501
+        codes = [anon.post("/login", data={"csrf_token": _token(anon, "/login"), "password": f"wrong-{i}"})
+                 for i in range(LOCKOUT_FAILURES)]  # fmt: skip
+        assert [r.status_code for r in codes] == [401] * (LOCKOUT_FAILURES - 1) + [429]
+        assert int(codes[-1].headers["Retry-After"]) > 0
+        r = anon.post("/login", data={"csrf_token": _token(anon, "/login"), "password": PASSWORD})
+        assert r.status_code == 429
+    assert c.get("/").status_code == 200
 
 
 def test_pfx_upload_of_server_key(served: tuple[httpx.Client, int, subprocess.Popen[bytes]]) -> None:

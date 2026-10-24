@@ -24,8 +24,9 @@ XSS = "<script>alert(1)</script>"
 
 
 def client(tmp_path: Path, **kw: object) -> TestClient:
+    kw.setdefault("login_required", False)  # login itself: tests/test_auth.py
     st = Settings(config_dir=tmp_path, **kw)  # type: ignore[arg-type]
-    return TestClient(create_app(st, policy=LOOP))
+    return TestClient(create_app(st, policy=LOOP), client=("127.0.0.1", 50000))
 
 
 def token(c: TestClient, path: str = "/") -> str:
@@ -295,7 +296,10 @@ def test_api_check_validation(tmp_path: Path) -> None:
 
 
 def test_policy_denies_metadata(tmp_path: Path) -> None:
-    c = TestClient(create_app(Settings(config_dir=tmp_path), policy=probe.TargetPolicy()))
+    c = TestClient(
+        create_app(Settings(config_dir=tmp_path, login_required=False), policy=probe.TargetPolicy()),
+        client=("127.0.0.1", 50000),
+    )
     d = c.post("/api/v1/check", json={"host": "www.example.test", "resolve": "169.254.169.254"}).json()
     assert d["error"] and d["connected_ip"] is None
 
