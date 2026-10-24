@@ -54,7 +54,7 @@ def documentation_is_public(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_split_dns_fires_on_public_answer_with_internal_resolver() -> None:
     f = hints.split_dns_warning("www.example.test", ["192.0.2.10"], "system", ["10.0.0.53"])
     assert f is not None and f.key() == ("split-dns", "warning", "connection")
-    assert "/etc/resolv.conf" in f.detail and "dig @10.0.0.53 www.example.test" in f.detail
+    assert "/etc/resolv.conf" in f.detail and "dig @<internal-dns-ip> www.example.test" in f.detail
     assert "getent hosts www.example.test" in f.detail
 
 
@@ -84,11 +84,14 @@ def test_firewall_hint_needs_name_failure_and_split_dns() -> None:
 
 
 @pytest.mark.usefixtures("documentation_is_public")
-def test_split_dns_hint_names_the_real_nameserver_not_a_placeholder() -> None:
-    f = hints.split_dns_warning("www.example.test", ["192.0.2.10"], "system", ["10.0.0.53"])
+def test_split_dns_hint_never_prints_the_internal_nameserver() -> None:
+    """Review S1 (M2b): exported results must not carry the site's internal resolver address."""
+    f = hints.split_dns_warning("www.example.test", ["192.0.2.10"], "system", ["10.0.0.53", "fd00::53"])
     assert f is not None
-    assert "INTERNAL-IP" not in f.detail
-    assert "--resolve www.example.test:$(dig +short @10.0.0.53 www.example.test | head -n 1)" in f.detail
+    assert "10.0.0.53" not in f.detail and "fd00::53" not in f.detail
+    assert hints.INTERNAL_DNS_PLACEHOLDER == "<internal-dns-ip>"
+    assert "--resolve www.example.test:$(dig +short @<internal-dns-ip> www.example.test | head -n 1)" in f.detail
+    assert "(2 in total)" in f.detail
 
 
 def test_docker_desktop_net_is_the_documented_private_default() -> None:
@@ -123,4 +126,4 @@ def test_docker_resolver_range_is_what_suppresses(monkeypatch: pytest.MonkeyPatc
     assert hints.firewall_hint([host_fail], f) is None
     # A second, non-Docker internal resolver still counts.
     g = hints.split_dns_warning("www.example.test", ["192.0.2.10"], "system", ["10.0.0.53", "fd00::53"])
-    assert g is not None and "dig @fd00::53" in g.detail
+    assert g is not None and "fd00::53" not in g.detail and "dig @<internal-dns-ip>" in g.detail

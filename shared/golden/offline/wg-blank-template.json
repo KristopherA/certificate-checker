@@ -1,0 +1,65 @@
+{
+  "case": "wg-blank-template",
+  "findings": [
+    {
+      "id": "wg0-empty-Address",
+      "kind": "allowed",
+      "severity": "fail",
+      "title": "[Interface] Address is empty",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-empty-PrivateKey",
+      "kind": "key",
+      "severity": "fail",
+      "title": "[Interface] PrivateKey is empty",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer0-empty-AllowedIPs",
+      "kind": "allowed",
+      "severity": "fail",
+      "title": "Peer 1: [Peer] AllowedIPs is empty",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer0-empty-Endpoint",
+      "kind": "endpoint",
+      "severity": "fail",
+      "title": "Peer 1: [Peer] Endpoint is empty",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer0-empty-PublicKey",
+      "kind": "peer",
+      "severity": "fail",
+      "title": "Peer 1: [Peer] PublicKey is empty",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer0-key",
+      "kind": "peer",
+      "severity": "fail",
+      "title": "Peer 1: no PublicKey",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-empty-DNS",
+      "kind": "consistency",
+      "severity": "warning",
+      "title": "[Interface] DNS is empty",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-key-priv",
+      "kind": "key",
+      "severity": "info",
+      "title": "No interface private key in this file",
+      "topic": "wireguard"
+    }
+  ],
+  "kind": "wireguard",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

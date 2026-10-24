@@ -73,7 +73,13 @@ ALLOWED_HOSTS = (
     "Xcode.app",
     "mask.icloud.com",
     "mask-h2.icloud.com",
-)  # Xcode.app: the DEVELOPER_DIR default in record-golden.sh. mask*.icloud.com: Apple's public Private Relay
+    "openssh.com",
+    "invalid.example",
+    "www.apple.com",
+)  # openssh.com: SSH key-type names (sk-ssh-ed25519@openssh.com), protocol identifiers as in SSHHostKeys.swift.
+# www.apple.com: only in Apple's public plist DTD system identifier, which munki.py must match exactly.
+# invalid.example: the RFC 2606 reserved EAP probe identity, exactly as in Radius.swift.
+# Xcode.app: the DEVELOPER_DIR default in record-golden.sh. mask*.icloud.com: Apple's public Private Relay
 # hosts, named in the split-DNS advice exactly as in Resolution.swift.
 EMAIL = re.compile(rb"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)")
 

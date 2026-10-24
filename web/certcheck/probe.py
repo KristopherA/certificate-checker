@@ -529,10 +529,13 @@ def run(
         last: Exception | None = None
         # One attempt per resolved address, in resolver order; stop at the first TCP connect that
         # succeeds. A TLS or upgrade failure after connecting is final (no retry on the next address).
-        for ip in addrs:
+        # The connect budget is split across the addresses still to try (review S9), so one black-holed
+        # address cannot use up the whole deadline before a working fallback gets its turn. Whatever a
+        # successful connect leaves unused stays available to the upgrade and handshake.
+        for i, ip in enumerate(addrs):
             r.connected_ip = ip
             try:
-                raw = socket.create_connection((ip, t.port), timeout=left())
+                raw = socket.create_connection((ip, t.port), timeout=left() / (len(addrs) - i))
             except OSError as e:
                 r.transcript.append(f"Connect to {ip}:{t.port} failed: {e}")
                 last = e

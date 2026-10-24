@@ -20,6 +20,7 @@ from pathlib import Path
 from .model import Finding, Severity, Topic
 
 RESOLV_CONF = Path("/etc/resolv.conf")
+INTERNAL_DNS_PLACEHOLDER = "<internal-dns-ip>"
 
 # Docker Desktop's default VM subnet (Settings > Resources > Network, documented default; the host resolver
 # proxy sits at .7/.254 in it). Built from its integer form so the source carries no private address literal.
@@ -128,12 +129,14 @@ def split_dns_warning(host: str, addresses: Sequence[str], source: str, ns: Sequ
     internal_ns = [n for n in ns if (c := classify(n)) is not None and c.is_internal and not is_docker_resolver(n)]
     if not internal_ns:
         return None
-    dns = internal_ns[0]
+    # The internal resolver's address is never printed (review S1, M2b): results get exported and shared.
+    dns = INTERNAL_DNS_PLACEHOLDER
     d = (
-        f"{host} resolved to {', '.join(addresses)} (public) while /etc/resolv.conf lists the internal DNS "
-        f"server {dns}. If the site uses split DNS, the internal answer was bypassed and the connection "
-        "may hairpin through the firewall's NAT, so you may be checking the firewall's certificate instead of the "
-        f"server's. Compare `dig @{dns} {host}` with `getent hosts {host}`. "
+        f"{host} resolved to {', '.join(addresses)} (public) while /etc/resolv.conf lists an internal DNS "
+        f"server ({len(internal_ns)} in total). If the site uses split DNS, the internal answer was bypassed and "
+        "the connection may hairpin through the firewall's NAT, so you may be checking the firewall's certificate "
+        f"instead of the server's. Compare `dig @{dns} {host}` with `getent hosts {host}` "
+        f"({dns}: a nameserver from /etc/resolv.conf). "
         "On a Mac Docker host, iCloud Private Relay / Oblivious DNS (mask.icloud.com) or an encrypted-DNS profile "
         "can do this: turn off Limit IP address tracking for this network, or block mask.icloud.com and "
         "mask-h2.icloud.com in the site DNS. VPN and proxy DNS can do the same. To check the internal server "

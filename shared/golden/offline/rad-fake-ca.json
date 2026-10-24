@@ -1,0 +1,72 @@
+{
+  "case": "rad-fake-ca",
+  "findings": [
+    {
+      "id": "rad-chain",
+      "kind": "chain",
+      "severity": "fail",
+      "title": "Chain does not verify",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-notca-1",
+      "kind": "chain",
+      "severity": "fail",
+      "title": "Issuer fakeca.example.test is not a CA",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-unlinked-0",
+      "kind": "chain",
+      "severity": "fail",
+      "title": "fakeca.example.test did not issue server.example.test",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-top",
+      "kind": "chain",
+      "severity": "info",
+      "title": "Chain stops at fakeca.example.test",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-eku",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate has the serverAuth EKU",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-key",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate key: RSA 2048-bit",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-name",
+      "kind": "name",
+      "severity": "pass",
+      "title": "RADIUS server certificate covers vpn.example.test",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-sig-0",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate signature: sha256WithRSA",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-valid",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate valid for 373 more days",
+      "topic": "radius"
+    }
+  ],
+  "kind": "radius",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

@@ -1,0 +1,51 @@
+{
+  "case": "smime-expired",
+  "findings": [
+    {
+      "id": "smime-eku",
+      "kind": "smime",
+      "severity": "pass",
+      "title": "E-mail Protection EKU present",
+      "topic": "eku"
+    },
+    {
+      "id": "smime-ku-sign",
+      "kind": "smime",
+      "severity": "pass",
+      "title": "Key usage allows signing",
+      "topic": "eku"
+    },
+    {
+      "id": "smime-ku-encrypt",
+      "kind": "smime",
+      "severity": "pass",
+      "title": "Key usage allows encryption",
+      "topic": "eku"
+    },
+    {
+      "id": "smime-address",
+      "kind": "smime",
+      "severity": "info",
+      "title": "Certificate names alice@example.test",
+      "topic": "hostname"
+    },
+    {
+      "id": "smime-expiry",
+      "kind": "smime",
+      "severity": "fail",
+      "title": "Expired 2144 days ago",
+      "topic": "expiry"
+    },
+    {
+      "id": "smime-key",
+      "kind": "smime",
+      "severity": "pass",
+      "title": "Key strength OK",
+      "topic": "weakKey"
+    }
+  ],
+  "kind": "smime",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

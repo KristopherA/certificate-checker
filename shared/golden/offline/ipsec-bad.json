@@ -1,0 +1,107 @@
+{
+  "case": "ipsec-bad",
+  "findings": [
+    {
+      "id": "srv0-eku",
+      "kind": "reissue",
+      "severity": "fail",
+      "title": "Server certificate lacks the serverAuth EKU",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-key",
+      "kind": "reissue",
+      "severity": "fail",
+      "title": "Server certificate has a weak 1024-bit RSA key",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-ku",
+      "kind": "reissue",
+      "severity": "fail",
+      "title": "Server certificate keyUsage lacks digitalSignature",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-san",
+      "kind": "san",
+      "severity": "fail",
+      "title": "Server certificate has no DNS or IP Subject Alternative Name",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-sig",
+      "kind": "reissue",
+      "severity": "fail",
+      "title": "Server certificate is signed with sha1WithRSA",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-lifetime",
+      "kind": "reissue",
+      "severity": "warning",
+      "title": "Server certificate lifetime is 900 days (over 825)",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ipsec-revocation",
+      "kind": "chain",
+      "severity": "info",
+      "title": "Revocation is not checked",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-eku-ike",
+      "kind": "reissue",
+      "severity": "info",
+      "title": "Server certificate has no IKE intermediate EKU (1.3.6.1.5.5.8.2.2)",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-id",
+      "kind": "san",
+      "severity": "info",
+      "title": "No client identifier given",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca0-bc",
+      "kind": "chain",
+      "severity": "pass",
+      "title": "CA Test IKEv2 CA has basicConstraints CA:TRUE",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca0-key",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "CA Test IKEv2 CA key: RSA 2048-bit",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca0-valid",
+      "kind": "validity",
+      "severity": "pass",
+      "title": "CA Test IKEv2 CA valid for 3626 more days",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-chain",
+      "kind": "chain",
+      "severity": "pass",
+      "title": "Server certificate chain verifies to Test IKEv2 CA",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-valid",
+      "kind": "validity",
+      "severity": "pass",
+      "title": "Server certificate valid for 876 more days",
+      "topic": "ipsec"
+    }
+  ],
+  "kind": "ipsec",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

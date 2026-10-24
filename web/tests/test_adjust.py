@@ -136,3 +136,16 @@ def test_forged_issuer_still_detected_but_not_downgraded() -> None:
         keys = {f.key() for f in out}
         assert ("trust", "fail", "trust") in keys, (name, keys)
         assert any(f.id == fid for f in out), (name, keys)
+
+
+def test_pinned_lone_leaf_keeps_its_note_and_its_fail() -> None:
+    """Review S10: a matching pin on a lone CA-issued leaf passes with the 'sent only its own certificate'
+    note in the detail, and the trust FAIL stays (the pin downgrade needs signatures_verify, so no leaf-only
+    downgrade wording exists any more)."""
+    c = chain("forged-pve.pem")
+    t = T(Service.PROXMOX_VE, "pve.example.test", 8006, fingerprint_pin=c[0].sha256)
+    out = adjust.appliance_adjust([TRUST_FAIL], c, t, NOW)
+    pin = next(f for f in out if f.id == "pve-pin")
+    assert pin.severity == Severity.PASS and "sent only its own certificate" in pin.detail
+    tr = next(f for f in out if f.id == "trust")
+    assert tr.severity == Severity.FAIL and "pin" not in tr.detail.lower()

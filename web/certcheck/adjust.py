@@ -356,13 +356,9 @@ def appliance_adjust(
                 )
             )
             if explained:
-                down(
-                    "Pinned: matches the fingerprint pin; the server sent only its own certificate, so the issuing "
-                    "chain was not checked."
-                    if leaf_only
-                    else "Trusted by the matching fingerprint pin.",
-                    Severity.INFO,
-                )
+                # No leaf-only wording here (review S10): a lone non-self-issued leaf never passes
+                # signatures_verify (B1), so _downgrade cannot apply to it; the PASS detail above carries that note.
+                down("Trusted by the matching fingerprint pin.", Severity.INFO)
         else:
             out.append(
                 Finding(

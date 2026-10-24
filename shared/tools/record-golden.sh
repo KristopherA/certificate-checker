@@ -12,6 +12,7 @@ DERIVED="${DERIVED:-$HOME/Library/Caches/CertificateChecker/DerivedData}"
 STAGE="$(mktemp -d)"; LOG="$(mktemp)"; trap 'rm -rf "$STAGE" "$LOG"' EXIT
 (cd "$SRC" && xcodegen generate --quiet)
 if ! TEST_RUNNER_CC_GOLDEN_OUT="$STAGE" TEST_RUNNER_CC_GOLDEN_FIXTURES="$FX" TEST_RUNNER_CC_GOLDEN_ADJUST_FIXTURES="$REPO/shared/fixtures/adjust" \
+  TEST_RUNNER_CC_GOLDEN_OFFLINE_MANIFEST="$REPO/shared/fixtures/offline/cases.json" \
   TEST_RUNNER_CERTCHECK_CONFIG=none \
   TEST_RUNNER_TZ=UTC TEST_RUNNER_LANG=en_US.UTF-8 TEST_RUNNER_LC_ALL=en_US.UTF-8 \
   xcodebuild -project "$SRC/CertificateChecker.xcodeproj" -scheme CertificateChecker -derivedDataPath "$DERIVED" \
@@ -34,4 +35,11 @@ mkdir -p "$OUT/adjust"
 for f in "$STAGE"/adjust/*.json; do
   python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); open(sys.argv[2],"w").write(json.dumps(d,indent=2,sort_keys=True,ensure_ascii=False)+"\n")' "$f" "$OUT/adjust/$(basename "$f")"
 done
-echo "recorded $n golden verdicts and $n2 adjustments in $OUT"
+# Offline checks (shared/fixtures/offline/cases.json on the app's Tests/Fixtures) land in golden/offline/.
+n3="$(find "$STAGE/offline" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')"
+[ "$n3" -gt 0 ] || { echo "no offline golden files written"; exit 1; }
+mkdir -p "$OUT/offline"
+for f in "$STAGE"/offline/*.json; do
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); open(sys.argv[2],"w").write(json.dumps(d,indent=2,sort_keys=True,ensure_ascii=False)+"\n")' "$f" "$OUT/offline/$(basename "$f")"
+done
+echo "recorded $n golden verdicts, $n2 adjustments and $n3 offline cases in $OUT"

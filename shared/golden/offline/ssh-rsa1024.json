@@ -1,0 +1,23 @@
+{
+  "case": "ssh-rsa1024",
+  "findings": [
+    {
+      "id": "ssh-alg-ssh-rsa",
+      "kind": "ssh",
+      "severity": "fail",
+      "title": "RSA host key is 1024 bits",
+      "topic": "weakKey"
+    },
+    {
+      "id": "ssh-ed25519",
+      "kind": "ssh",
+      "severity": "info",
+      "title": "No Ed25519 host key",
+      "topic": "weakKey"
+    }
+  ],
+  "kind": "ssh",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

@@ -105,6 +105,10 @@ class Cert:
     ski: bytes | None
     aki: bytes | None
     raw: x509.Certificate = field(repr=False, compare=False)
+    emails: tuple[str, ...] = ()  # SAN rfc822Name entries
+    subject_emails: tuple[str, ...] = ()  # legacy subject emailAddress (1.2.840.113549.1.9.1)
+    path_len: int | None = None
+    key_usage_bits: bytes | None = None  # the KeyUsage BIT STRING bytes, as X509.swift keeps them
 
     @property
     def is_self_issued(self) -> bool:
@@ -155,6 +159,32 @@ def wildcard_match(pattern: str, host: str) -> bool:
     return bool(label) and rest == suffix
 
 
+KU_BITS = (
+    "digital_signature",
+    "content_commitment",
+    "key_encipherment",
+    "data_encipherment",
+    "key_agreement",
+    "key_cert_sign",
+    "crl_sign",
+    "encipher_only",
+    "decipher_only",
+)
+
+
+def _ku_bits(ku: x509.KeyUsage) -> bytes:
+    """Rebuild the BIT STRING bytes (bit 0 = 0x80 of byte 0) from the parsed flags."""
+    bits = 0
+    for i, name in enumerate(KU_BITS):
+        try:
+            on = bool(getattr(ku, name))
+        except ValueError:  # encipher_only/decipher_only are only defined with keyAgreement
+            on = False
+        if on:
+            bits |= 1 << (15 - i)
+    return bits.to_bytes(2, "big").rstrip(b"\x00") or b"\x00"
+
+
 def _name_text(n: x509.Name) -> str:
     return n.rfc4514_string()
 
@@ -167,11 +197,14 @@ def parse_cert(der: bytes) -> Cert:
     eku = _ext(c, x509.ExtendedKeyUsage)
     ski = _ext(c, x509.SubjectKeyIdentifier)
     aki = _ext(c, x509.AuthorityKeyIdentifier)
+    ku = _ext(c, x509.KeyUsage)
     dns: tuple[str, ...] = ()
     ips: tuple[str, ...] = ()
+    emails: tuple[str, ...] = ()
     if isinstance(san, x509.SubjectAlternativeName):
         dns = tuple(san.get_values_for_type(x509.DNSName))
         ips = tuple(str(a) for a in san.get_values_for_type(x509.IPAddress))
+        emails = tuple(san.get_values_for_type(x509.RFC822Name))
     return Cert(
         der=der,
         sha256=fingerprint(der),
@@ -192,6 +225,10 @@ def parse_cert(der: bytes) -> Cert:
         ski=ski.digest if isinstance(ski, x509.SubjectKeyIdentifier) else None,
         aki=aki.key_identifier if isinstance(aki, x509.AuthorityKeyIdentifier) else None,
         raw=c,
+        emails=emails,
+        subject_emails=tuple(str(a.value) for a in c.subject.get_attributes_for_oid(NameOID.EMAIL_ADDRESS)),
+        path_len=getattr(basic, "path_length", None),
+        key_usage_bits=_ku_bits(ku) if isinstance(ku, x509.KeyUsage) else None,
     )
 
 
@@ -226,6 +263,36 @@ def parse_request(der: bytes) -> Request:
         dns_names=dns,
         ip_addresses=ips,
     )
+
+
+ENCRYPTED_KEY = (
+    "Encrypted PKCS#8 keys are not decrypted in v0.1. Compare using the certificate's PFX instead, "
+    "or decrypt to a temporary file on an approved admin workstation."
+)
+
+
+def private_key_facts(label: str, pem_block: bytes) -> tuple[KeyInfo, str]:
+    """(public half, format) of a PEM private key, as X509.swift PrivateKeyFacts. Encrypted keys are refused."""
+    if label == "ENCRYPTED PRIVATE KEY":
+        raise ValueError(ENCRYPTED_KEY)
+    fmt = {"RSA PRIVATE KEY": "PKCS#1 RSA", "EC PRIVATE KEY": "SEC1 EC"}.get(label)
+    if fmt is None and label != "PRIVATE KEY":
+        raise ValueError(f"Unsupported key type: {label}.")
+    try:
+        k = serialization.load_pem_private_key(pem_block, password=None)
+    except TypeError as e:  # a password-protected traditional key
+        raise ValueError(ENCRYPTED_KEY) from e
+    pub = k.public_key()
+    if fmt is None:
+        if isinstance(pub, rsa.RSAPublicKey):
+            fmt = "PKCS#8 RSA"
+        elif isinstance(pub, ec.EllipticCurvePublicKey):
+            fmt = "PKCS#8 EC"
+        elif isinstance(pub, ed25519.Ed25519PublicKey):
+            fmt = "PKCS#8 Ed25519"
+        else:
+            raise ValueError(f"Unsupported key type: {type(pub).__name__}.")
+    return key_info(pub), fmt
 
 
 def private_key_info(pem_block: bytes, password: bytes | None = None) -> KeyInfo:

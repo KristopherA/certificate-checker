@@ -1,0 +1,23 @@
+{
+  "case": "dkim-2048-mismatch",
+  "findings": [
+    {
+      "id": "dkim-key",
+      "kind": "dkim",
+      "severity": "pass",
+      "title": "RSA key is 2048 bits",
+      "topic": "weakKey"
+    },
+    {
+      "id": "dkim-match",
+      "kind": "dkim",
+      "severity": "fail",
+      "title": "Private key does not match the DNS record",
+      "topic": "keyMismatch"
+    }
+  ],
+  "kind": "dkim",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

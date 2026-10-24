@@ -1,0 +1,58 @@
+{
+  "case": "munki-pair",
+  "findings": [
+    {
+      "id": "mtls-handshake",
+      "kind": "munki-config",
+      "severity": "info",
+      "title": "Client certificate not presented in a live handshake",
+      "topic": "vendor"
+    },
+    {
+      "id": "munki-profiles",
+      "kind": "munki-config",
+      "severity": "info",
+      "title": "Configuration-profile values not read",
+      "topic": "vendor"
+    },
+    {
+      "id": "mtls-ca",
+      "kind": "munki-config",
+      "severity": "pass",
+      "title": "Client certificate chains to the supplied CA SYNTHETIC Vendor CA",
+      "topic": "vendor"
+    },
+    {
+      "id": "mtls-eku",
+      "kind": "munki-config",
+      "severity": "pass",
+      "title": "Client certificate client01.example.test has the clientAuth EKU",
+      "topic": "vendor"
+    },
+    {
+      "id": "mtls-key-0",
+      "kind": "munki-config",
+      "severity": "pass",
+      "title": "Private key matches the client certificate",
+      "topic": "vendor"
+    },
+    {
+      "id": "mtls-valid",
+      "kind": "munki-config",
+      "severity": "pass",
+      "title": "Client certificate client01.example.test valid for 341 more days",
+      "topic": "vendor"
+    },
+    {
+      "id": "munki-url",
+      "kind": "munki-config",
+      "severity": "pass",
+      "title": "SoftwareRepoURL uses HTTPS",
+      "topic": "vendor"
+    }
+  ],
+  "kind": "munki",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

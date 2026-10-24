@@ -1,0 +1,476 @@
+{
+  "schema": 1,
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "fixtures": "Mac app Tests/Fixtures (located with shared/tools/swift_root.py); no copies here",
+  "note": "Offline checks (M3): RADIUS, IPsec, mTLS pair, Munki, WireGuard, S/MIME, DKIM, SSH host keys. kind selects the checker.",
+  "cases": [
+    {
+      "name": "rad-good",
+      "kind": "radius",
+      "files": [
+        "ipsec-server.crt",
+        "ipsec-ca.crt",
+        "ipsec-server.key"
+      ],
+      "expected": "vpn.example.test"
+    },
+    {
+      "name": "rad-bad",
+      "kind": "radius",
+      "files": [
+        "ipsec-bad.crt",
+        "ipsec-ca.crt"
+      ],
+      "expected": "radius.example.test"
+    },
+    {
+      "name": "rad-leaf-only",
+      "kind": "radius",
+      "files": [
+        "ipsec-server.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "rad-expiring",
+      "kind": "radius",
+      "files": [
+        "ipsec-underexp.crt",
+        "ipsec-intexp.crt",
+        "ipsec-ca.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "rad-old",
+      "kind": "radius",
+      "files": [
+        "ipsec-old.crt",
+        "ipsec-ca.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "rad-key-mismatch",
+      "kind": "radius",
+      "files": [
+        "ipsec-server.crt",
+        "ipsec-other.key"
+      ],
+      "expected": null
+    },
+    {
+      "name": "rad-fake-ca",
+      "kind": "radius",
+      "files": [
+        "ipsec-server.crt",
+        "ipsec-fakeca.crt"
+      ],
+      "expected": "vpn.example.test"
+    },
+    {
+      "name": "rad-top-not-sent",
+      "kind": "radius",
+      "files": [
+        "ipsec-rollleaf.crt",
+        "ipsec-roll.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-pfsense-27",
+      "kind": "ipsec",
+      "files": [
+        "SYNTHETIC-pfsense-2.7-config.xml"
+      ],
+      "expected": "vpn.example.test"
+    },
+    {
+      "name": "ipsec-pfsense-legacy",
+      "kind": "ipsec",
+      "files": [
+        "pfsense-config.xml"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-files",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-server.crt",
+        "ipsec-ca.crt",
+        "ipsec-server.key"
+      ],
+      "expected": "vpn.example.test"
+    },
+    {
+      "name": "ipsec-wild",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-wild.crt",
+        "ipsec-ca.crt"
+      ],
+      "expected": "vpn.example.test"
+    },
+    {
+      "name": "ipsec-ec",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-ec.crt",
+        "ipsec-ec.key",
+        "ipsec-ca.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-aki-roll",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-akileaf.crt",
+        "ipsec-akiroll.crt",
+        "ipsec-akiroot.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-pathlen",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-plleaf.crt",
+        "ipsec-plint.crt",
+        "ipsec-pl0-root.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-roll",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-rollleaf.crt",
+        "ipsec-roll.crt",
+        "ipsec-rollroot.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-orphan",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-orphan.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-bad",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-bad.crt",
+        "ipsec-ca.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-fake-ca",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-server.crt",
+        "ipsec-fakeca.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ipsec-top-not-sent",
+      "kind": "ipsec",
+      "files": [
+        "ipsec-rollleaf.crt",
+        "ipsec-roll.crt"
+      ],
+      "expected": null
+    },
+    {
+      "name": "mtls-beats-client",
+      "kind": "mtls",
+      "files": [
+        "SYNTHETIC-beats-client.pem",
+        "SYNTHETIC-beats-client.key"
+      ],
+      "ca": [
+        "SYNTHETIC-stack-ca.pem"
+      ],
+      "context": "beats"
+    },
+    {
+      "name": "mtls-beats-anyeku",
+      "kind": "mtls",
+      "files": [
+        "SYNTHETIC-beats-anyeku.pem",
+        "SYNTHETIC-beats-anyeku.key"
+      ],
+      "ca": [
+        "SYNTHETIC-stack-ca.pem"
+      ],
+      "context": "beats"
+    },
+    {
+      "name": "mtls-beats-otherca",
+      "kind": "mtls",
+      "files": [
+        "SYNTHETIC-beats-otherca.pem",
+        "SYNTHETIC-beats-otherca.key"
+      ],
+      "ca": [
+        "SYNTHETIC-stack-ca.pem"
+      ],
+      "context": "beats"
+    },
+    {
+      "name": "mtls-beats-serveronly",
+      "kind": "mtls",
+      "files": [
+        "SYNTHETIC-beats-serveronly.pem",
+        "SYNTHETIC-beats-serveronly.key"
+      ],
+      "ca": [
+        "SYNTHETIC-stack-ca.pem"
+      ],
+      "context": "beats"
+    },
+    {
+      "name": "mtls-munki-client",
+      "kind": "mtls",
+      "files": [
+        "SYNTHETIC-munki-client.pem",
+        "SYNTHETIC-munki-client.key"
+      ],
+      "ca": [
+        "SYNTHETIC-vendor-ca.pem"
+      ],
+      "context": "munki"
+    },
+    {
+      "name": "munki-plist-only",
+      "kind": "munki",
+      "plist": "SYNTHETIC-ManagedInstalls.plist"
+    },
+    {
+      "name": "munki-pair",
+      "kind": "munki",
+      "plist": "SYNTHETIC-ManagedInstalls.plist",
+      "cert": "SYNTHETIC-munki-client.pem",
+      "key": "SYNTHETIC-munki-client.key",
+      "ca_file": "SYNTHETIC-vendor-ca.pem"
+    },
+    {
+      "name": "munki-key-mismatch",
+      "kind": "munki",
+      "plist": "SYNTHETIC-ManagedInstalls.plist",
+      "cert": "SYNTHETIC-munki-client.pem",
+      "key": "SYNTHETIC-munki-other.key",
+      "ca_file": "SYNTHETIC-vendor-ca.pem"
+    },
+    {
+      "name": "munki-wrong-ca",
+      "kind": "munki",
+      "plist": "SYNTHETIC-ManagedInstalls.plist",
+      "cert": "SYNTHETIC-munki-client.pem",
+      "key": "SYNTHETIC-munki-client.key",
+      "ca_file": "SYNTHETIC-stack-ca.pem"
+    },
+    {
+      "name": "wg-client",
+      "kind": "wireguard",
+      "files": [
+        "wg-client.conf"
+      ],
+      "expected": null
+    },
+    {
+      "name": "wg-server",
+      "kind": "wireguard",
+      "files": [
+        "wg-server.conf"
+      ],
+      "expected": null
+    },
+    {
+      "name": "wg-bad",
+      "kind": "wireguard",
+      "files": [
+        "wg-bad.conf"
+      ],
+      "expected": null
+    },
+    {
+      "name": "wg-blank-template",
+      "kind": "wireguard",
+      "files": [
+        "wg-blank-template.conf"
+      ],
+      "expected": null
+    },
+    {
+      "name": "wg-pair",
+      "kind": "wireguard",
+      "files": [
+        "wg-client.conf",
+        "wg-server.conf"
+      ],
+      "expected": null
+    },
+    {
+      "name": "wg-pfsense-export",
+      "kind": "wireguard",
+      "files": [
+        "SYNTHETIC-pfsense-wireguard-export.xml"
+      ],
+      "expected": null
+    },
+    {
+      "name": "smime-good",
+      "kind": "smime",
+      "files": [
+        "SYNTHETIC-smime-good.pem"
+      ],
+      "expected": null
+    },
+    {
+      "name": "smime-expired",
+      "kind": "smime",
+      "files": [
+        "SYNTHETIC-smime-expired.pem"
+      ],
+      "expected": null
+    },
+    {
+      "name": "smime-noaddr",
+      "kind": "smime",
+      "files": [
+        "SYNTHETIC-smime-noaddr.pem"
+      ],
+      "expected": null
+    },
+    {
+      "name": "smime-server",
+      "kind": "smime",
+      "files": [
+        "SYNTHETIC-smime-server.pem"
+      ],
+      "expected": null
+    },
+    {
+      "name": "smime-signonly",
+      "kind": "smime",
+      "files": [
+        "SYNTHETIC-smime-signonly.pem"
+      ],
+      "expected": null
+    },
+    {
+      "name": "smime-soon",
+      "kind": "smime",
+      "files": [
+        "SYNTHETIC-smime-soon.pem"
+      ],
+      "expected": null
+    },
+    {
+      "name": "smime-weak",
+      "kind": "smime",
+      "files": [
+        "SYNTHETIC-smime-weak.pem"
+      ],
+      "expected": null
+    },
+    {
+      "name": "smime-good-wrong-address",
+      "kind": "smime",
+      "files": [
+        "SYNTHETIC-smime-good.pem"
+      ],
+      "expected": "nobody@example.test"
+    },
+    {
+      "name": "dkim-2048-match",
+      "kind": "dkim",
+      "files": [
+        "SYNTHETIC-dkim-2048.txt"
+      ],
+      "key": "SYNTHETIC-dkim-2048.key"
+    },
+    {
+      "name": "dkim-2048-mismatch",
+      "kind": "dkim",
+      "files": [
+        "SYNTHETIC-dkim-2048.txt"
+      ],
+      "key": "SYNTHETIC-dkim-1024.key"
+    },
+    {
+      "name": "dkim-1024",
+      "kind": "dkim",
+      "files": [
+        "SYNTHETIC-dkim-1024.txt"
+      ],
+      "key": "SYNTHETIC-dkim-1024.key"
+    },
+    {
+      "name": "dkim-ed",
+      "kind": "dkim",
+      "files": [
+        "SYNTHETIC-dkim-ed.txt"
+      ],
+      "key": "SYNTHETIC-dkim-ed.key"
+    },
+    {
+      "name": "dkim-revoked",
+      "kind": "dkim",
+      "files": [
+        "SYNTHETIC-dkim-revoked.txt"
+      ]
+    },
+    {
+      "name": "ssh-host-known",
+      "kind": "ssh",
+      "files": [
+        "SYNTHETIC-ssh-host.pub"
+      ],
+      "known_hosts": "SYNTHETIC-ssh-known_hosts",
+      "host": "host1.example.test"
+    },
+    {
+      "name": "ssh-host-hashed",
+      "kind": "ssh",
+      "files": [
+        "SYNTHETIC-ssh-host.pub"
+      ],
+      "known_hosts": "SYNTHETIC-ssh-known_hosts-hashed",
+      "host": "host1.example.test"
+    },
+    {
+      "name": "ssh-ed-rotated",
+      "kind": "ssh",
+      "files": [
+        "SYNTHETIC-ssh-ed-rotated.pub"
+      ],
+      "known_hosts": "SYNTHETIC-ssh-known_hosts",
+      "host": "host1.example.test"
+    },
+    {
+      "name": "ssh-rsa1024",
+      "kind": "ssh",
+      "files": [
+        "SYNTHETIC-ssh-rsa1024.pub"
+      ]
+    },
+    {
+      "name": "ssh-rsa3072-port",
+      "kind": "ssh",
+      "files": [
+        "SYNTHETIC-ssh-rsa3072.pub"
+      ],
+      "known_hosts": "SYNTHETIC-ssh-known_hosts",
+      "host": "host1.example.test",
+      "port": 2222
+    }
+  ]
+}

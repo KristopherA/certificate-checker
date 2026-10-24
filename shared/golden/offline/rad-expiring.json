@@ -1,0 +1,58 @@
+{
+  "case": "rad-expiring",
+  "findings": [
+    {
+      "id": "rad-caexp-1",
+      "kind": "chain",
+      "severity": "fail",
+      "title": "Issuer intexp.example.test expired Jan 1, 2021 at 12:00 AM",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-chain",
+      "kind": "chain",
+      "severity": "fail",
+      "title": "Chain does not verify",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-name",
+      "kind": "name",
+      "severity": "info",
+      "title": "No expected server name given",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-eku",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate has the serverAuth EKU",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-key",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate key: RSA 2048-bit",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-sig-0",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate signature: sha256WithRSA",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-valid",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate valid for 373 more days",
+      "topic": "radius"
+    }
+  ],
+  "kind": "radius",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

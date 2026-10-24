@@ -37,7 +37,9 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM"]
 ignore = ["S101"]  # assert is fine in tests
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S603", "S607"]
+"tests/**" = ["S603", "S607", "S105", "S106"]  # S105/S106: synthetic test-only secrets and PFX passwords
+"certcheck/offline/**" = ["E501"]
+"certcheck/radius.py" = ["E501"]  # user-facing strings are ported verbatim from the Swift sources for parity
 "../shared/fixtures/make_fixture_ca.py" = ["S303"]  # the sha1-signature fixture is deliberately weak
 
 [tool.mypy]

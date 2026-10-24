@@ -1,0 +1,37 @@
+{
+  "case": "dkim-1024",
+  "findings": [
+    {
+      "id": "dkim-key",
+      "kind": "dkim",
+      "severity": "warning",
+      "title": "RSA key is 1024 bits",
+      "topic": "weakKey"
+    },
+    {
+      "id": "dkim-hash",
+      "kind": "dkim",
+      "severity": "warning",
+      "title": "h= allows sha1",
+      "topic": "weakSignature"
+    },
+    {
+      "id": "dkim-testing",
+      "kind": "dkim",
+      "severity": "warning",
+      "title": "Testing mode (t=y)",
+      "topic": "general"
+    },
+    {
+      "id": "dkim-match",
+      "kind": "dkim",
+      "severity": "pass",
+      "title": "Private key matches the DNS record",
+      "topic": "keyMismatch"
+    }
+  ],
+  "kind": "dkim",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

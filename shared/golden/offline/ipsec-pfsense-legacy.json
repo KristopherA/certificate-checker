@@ -1,0 +1,23 @@
+{
+  "case": "ipsec-pfsense-legacy",
+  "findings": [
+    {
+      "id": "ipsec-noserver",
+      "kind": "info",
+      "severity": "fail",
+      "title": "No certificate found",
+      "topic": "ipsec"
+    },
+    {
+      "id": "parse-pfsense-config.xml",
+      "kind": "info",
+      "severity": "fail",
+      "title": "Could not parse pfsense-config.xml",
+      "topic": "ipsec"
+    }
+  ],
+  "kind": "ipsec",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

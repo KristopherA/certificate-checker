@@ -1,0 +1,79 @@
+{
+  "case": "wg-bad",
+  "findings": [
+    {
+      "id": "wg0-peer0-endpoint",
+      "kind": "endpoint",
+      "severity": "fail",
+      "title": "Peer 1: invalid Endpoint",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer0-psk",
+      "kind": "peer",
+      "severity": "fail",
+      "title": "Peer 1: PresharedKey not valid base64",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer1-allowed-300.1.1.1/32",
+      "kind": "allowed",
+      "severity": "fail",
+      "title": "Peer 2: AllowedIPs entry '300.1.1.1/32' is not a valid IP/prefix",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer1-dup",
+      "kind": "peer",
+      "severity": "fail",
+      "title": "Peer 2: duplicate peer key",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer1-endpoint",
+      "kind": "endpoint",
+      "severity": "fail",
+      "title": "Peer 2: invalid Endpoint",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer1-overlap-198.51.100.0/24-0-198.51.100.0/24",
+      "kind": "allowed",
+      "severity": "fail",
+      "title": "Peer 2: AllowedIPs 198.51.100.0/24 duplicates Peer 1's 198.51.100.0/24",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer2-self",
+      "kind": "peer",
+      "severity": "fail",
+      "title": "Peer 3: peer key equals this interface's own key",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer2-overlap-198.51.100.5/32-0-198.51.100.0/24",
+      "kind": "allowed",
+      "severity": "warning",
+      "title": "Peer 3: AllowedIPs 198.51.100.5/32 overlaps Peer 1's 198.51.100.0/24",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peer2-overlap-198.51.100.5/32-1-198.51.100.0/24",
+      "kind": "allowed",
+      "severity": "warning",
+      "title": "Peer 3: AllowedIPs 198.51.100.5/32 overlaps Peer 2's 198.51.100.0/24",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-key-priv",
+      "kind": "key",
+      "severity": "pass",
+      "title": "Interface private key is a valid Curve25519 key",
+      "topic": "wireguard"
+    }
+  ],
+  "kind": "wireguard",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

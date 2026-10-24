@@ -112,6 +112,55 @@ final class GoldenExportTests: PinnedTestCase {
         }
     }
 
+    /// Offline checks (M3): shared/fixtures/offline/cases.json on this app's own Tests/Fixtures, into golden/offline/.
+    func testRecordOfflineGolden() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let outPath = env["CC_GOLDEN_OUT"], let mPath = env["CC_GOLDEN_OFFLINE_MANIFEST"] else {
+            throw XCTSkip("CC_GOLDEN_OUT / CC_GOLDEN_OFFLINE_MANIFEST not set")
+        }
+        continueAfterFailure = false
+        XCTAssertTrue(["UTC", "GMT"].contains(TimeZone.current.identifier), "record with TZ=UTC")
+        let fx = CertificateCheckerTests.fixtures, out = URL(fileURLWithPath: outPath).appendingPathComponent("offline")
+        let manifest = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: mPath))) as? [String: Any])
+        let pinned = try XCTUnwrap(manifest["pinned_now"] as? String, "pinned_now missing")
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: pinned), "pinned_now is not ISO 8601")
+        let cases = try XCTUnwrap(manifest["cases"] as? [[String: Any]], "cases missing")
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        func u(_ n: String) throws -> URL { try Self.checkName(n); return fx.appendingPathComponent(n) }
+        func opt(_ c: [String: Any], _ k: String) throws -> URL? { try (c[k] as? String).map(u) }
+        for c in cases {
+            let name = try XCTUnwrap(c["name"] as? String, "case without name"), kind = try XCTUnwrap(c["kind"] as? String, "\(name): kind missing")
+            try Self.checkName(name)
+            let files = try ((c["files"] as? [String]) ?? []).map(u), expected = c["expected"] as? String
+            let f: [Finding]
+            switch kind {
+            case "radius": f = RadiusCheck.inspect(files, expectedName: expected, now: now).findings
+            case "ipsec": f = IPsecCheck.inspect(files, expectedIdentifier: expected, now: now).findings
+            case "mtls":
+                let ca = try ((c["ca"] as? [String]) ?? []).map(u)
+                f = MTLSPair.inspect(files, ca: ca, now: now, context: (c["context"] as? String) == "munki" ? .munki : .beats).findings
+            case "munki":
+                let m = try Munki.load(try XCTUnwrap(try opt(c, "plist"), "\(name): plist missing"))
+                f = Munki.inspect(m, cert: try opt(c, "cert"), key: try opt(c, "key"), ca: try opt(c, "ca_file"), now: now).findings
+            case "wireguard": f = WGCheck.inspect(files, expectedPublicKey: expected).findings
+            case "smime":
+                let der = try XCTUnwrap(PEM.blocks(String(decoding: try Data(contentsOf: files[0]), as: UTF8.self)).first, "\(name): no PEM").der
+                f = SMIME.inspect(try Certificate(der: der), address: expected, now: now)
+            case "dkim": f = DKIM.inspect(try DKIM.recordFile(files[0]), privateKey: try opt(c, "key").map(DKIM.privateKeyPublicHalf))
+            case "ssh":
+                let keys = SSHHostKeys.parseHostKeys(String(decoding: try Data(contentsOf: files[0]), as: UTF8.self))
+                let kh = try opt(c, "known_hosts").map { SSHHostKeys.parseKnownHosts(String(decoding: try Data(contentsOf: $0), as: UTF8.self)) }
+                f = SSHHostKeys.inspect(hostKeys: keys, knownHosts: kh, host: c["host"] as? String, port: (c["port"] as? Int) ?? 22)
+            default: XCTFail("\(name): unknown kind \(kind)"); continue
+            }
+            let doc: [String: Any] = [
+                "schema": 1, "case": name, "kind": kind, "pinned_now": pinned, "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+                "findings": f.map { ["id": $0.id, "severity": $0.severity.label.lowercased(), "topic": $0.topic.rawValue, "kind": $0.kind, "title": $0.title] },
+            ]
+            try JSONSerialization.data(withJSONObject: doc, options: [.prettyPrinted, .sortedKeys]).write(to: out.appendingPathComponent("\(name).json"))
+        }
+    }
+
     static func pemBlocks(_ url: URL) throws -> [[UInt8]] {
         let text = try String(contentsOf: url, encoding: .utf8)
         var blocks: [[UInt8]] = [], cur: [String]? = nil

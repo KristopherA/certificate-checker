@@ -375,3 +375,30 @@ def test_family_filter(monkeypatch: pytest.MonkeyPatch) -> None:
     assert probe.resolve(probe.Target("dual.example.test", 443, family="ipv4"))[0] == ["192.0.2.10"]
     assert probe.resolve(probe.Target("dual.example.test", 443, family="ipv6"))[0] == ["2001:db8::1"]
     assert probe.resolve(probe.Target("dual.example.test", 443))[0] == ["2001:db8::1", "192.0.2.10"]
+
+
+def test_connect_budget_is_split_across_fallback_addresses(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Review S9: a black-holed first address gets only its share, so the working fallback still runs."""
+    real = socket.create_connection
+    budgets: list[tuple[str, float]] = []
+
+    def connect(addr: tuple[str, int], timeout: float, *a: object, **k: object) -> socket.socket:
+        budgets.append((addr[0], timeout))
+        if addr[0] == "::1":
+            time.sleep(timeout)  # a silent drop: the attempt uses exactly its share, then times out
+            raise TimeoutError("timed out")
+        return real(addr, timeout, *a, **k)  # type: ignore[arg-type]
+
+    with tls_server("good") as port:
+        answers = [
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", port, 0, 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port)),
+        ]
+        monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: answers)
+        monkeypatch.setattr(socket, "create_connection", connect)
+        r = probe.run(probe.Target("good.example.test", port), timeout=2, now=NOW, policy=LOOPBACK_OK)
+    assert r.error is None and r.connected_ip == "127.0.0.1"
+    (ip0, b0), (ip1, b1) = budgets
+    assert ip0 == "::1" and 0.8 < b0 <= 1.0  # half of the 2 s budget
+    assert ip1 == "127.0.0.1" and 0.8 < b1 <= 1.0  # the rest, for the last address
+    assert r.duration_s is not None and r.duration_s < 2

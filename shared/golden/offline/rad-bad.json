@@ -1,0 +1,58 @@
+{
+  "case": "rad-bad",
+  "findings": [
+    {
+      "id": "rad-eku",
+      "kind": "reissue",
+      "severity": "fail",
+      "title": "RADIUS server certificate lacks the serverAuth EKU",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-key",
+      "kind": "reissue",
+      "severity": "fail",
+      "title": "RADIUS server certificate has a weak 1024-bit RSA key",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-name",
+      "kind": "name",
+      "severity": "fail",
+      "title": "RADIUS server certificate does not match radius.example.test",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-sig-0",
+      "kind": "reissue",
+      "severity": "fail",
+      "title": "RADIUS server certificate is signed with sha1WithRSA",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-lifetime",
+      "kind": "reissue",
+      "severity": "warning",
+      "title": "RADIUS server certificate lifetime is 900 days (over 825)",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-chain",
+      "kind": "chain",
+      "severity": "pass",
+      "title": "Chain verifies to Test IKEv2 CA",
+      "topic": "radius"
+    },
+    {
+      "id": "rad-valid",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "RADIUS server certificate valid for 876 more days",
+      "topic": "radius"
+    }
+  ],
+  "kind": "radius",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

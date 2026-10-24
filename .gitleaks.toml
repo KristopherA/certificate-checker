@@ -1,4 +1,6 @@
-# certificate-checker gitleaks config (gitleaks >= 8.28).
+# certificate-checker gitleaks config (gitleaks >= 8.28). CI pins gitleaks 8.30.1: from 8.30 gitleaks decodes
+# base64 text and reports PEM keys inside it (the pfSense config.xml <prv> fields), so the list below covers
+# that too; 8.21/8.28 do not decode and accept the same config.
 #
 # CI must run gitleaks from the repository root (`gitleaks dir .` or `gitleaks git .` with the root as
 # the working directory): every allowlist path below is anchored to the root (^Tests/..., ^shared/...),
@@ -50,6 +52,7 @@ paths = [
   '''^Tests/Fixtures/SYNTHETIC\-munki\-repo\.key$''',  # sha256 380bbf5bf9a2e129db401a1d3729e49742c3697ded04de53c88713253058bb1a
   '''^Tests/Fixtures/SYNTHETIC\-openssl\-default\.key$''',  # sha256 05f352a761f7582c8dac550e7f3fe1dc16622d02e31f3d9195c7193d8f3041e7
   '''^Tests/Fixtures/SYNTHETIC\-pbs\-selfsigned\.key$''',  # sha256 bf647fed07371c4171cb0d866a278dde4718e8663bba6c0ec60157750f652cd8
+  '''^Tests/Fixtures/SYNTHETIC\-pfsense\-2\.7\-config\.xml$''',  # sha256 9cfdd494ced12b5cfdaac0c7a7c9152e229ba6ef6c7c5f94b46b754464b89ead
   '''^Tests/Fixtures/SYNTHETIC\-pve\-default\.key$''',  # sha256 36f3d5e923d98a75f5238614e67f0df3dab0a2a89cd6ec5b3eeaf045da420718
   '''^Tests/Fixtures/SYNTHETIC\-registry\-server\.key$''',  # sha256 5c67f33bc995ab0d427f809d382acb5ed5e648c6a1f6159f0cfac60d45e671de
   '''^Tests/Fixtures/SYNTHETIC\-retrospect\-default\.key$''',  # sha256 ec152369663ae609dc0b802a1028a17537bec9ed0b9503c5c9932de9d953b374
@@ -136,6 +139,12 @@ condition = "AND"
 paths = ['''^Tests/RadiusTests\.swift$''']
 regexTarget = "line"
 regexes = ['''(?m)^ *let r = RadiusProbe\.run\(host: "127\.0\.0\.1", expectedName: "vpn\.example\.test", secret: "SYNTH-secret-123", tool: tool\)$''']
+[[rules.allowlists]]
+description = "Synthetic key file names in the offline fixture index (exact \"key\" lines only)"
+condition = "AND"
+paths = ['''^shared/fixtures/offline/cases\.json$''']
+regexTarget = "line"
+regexes = ['''(?m)^ *"key": "SYNTHETIC-[A-Za-z0-9-]+\.key",?$''']
 
 [[rules]]
 id = "pkcs12-file"

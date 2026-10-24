@@ -1,0 +1,58 @@
+{
+  "case": "wg-pfsense-export",
+  "findings": [
+    {
+      "id": "wg-disabled-peer-3",
+      "kind": "info",
+      "severity": "info",
+      "title": "SYNTHETIC-pfsense-wireguard-export.xml › tun_wg0: peer SYNTHETIC retired is disabled; skipped",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-key-priv",
+      "kind": "key",
+      "severity": "pass",
+      "title": "SYNTHETIC-pfsense-wireguard-export.xml › tun_wg0: Interface private key is a valid Curve25519 key",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-key-pub",
+      "kind": "key",
+      "severity": "pass",
+      "title": "SYNTHETIC-pfsense-wireguard-export.xml › tun_wg0: Stated public key matches the private key",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peers-ok",
+      "kind": "peer",
+      "severity": "pass",
+      "title": "SYNTHETIC-pfsense-wireguard-export.xml › tun_wg0: 2 peers: keys, AllowedIPs and endpoints are consistent",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg1-key-priv",
+      "kind": "key",
+      "severity": "pass",
+      "title": "SYNTHETIC-pfsense-wireguard-export.xml › tun_wg1: Interface private key is a valid Curve25519 key",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg1-key-pub",
+      "kind": "key",
+      "severity": "pass",
+      "title": "SYNTHETIC-pfsense-wireguard-export.xml › tun_wg1: Stated public key matches the private key",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg1-peers-ok",
+      "kind": "peer",
+      "severity": "pass",
+      "title": "SYNTHETIC-pfsense-wireguard-export.xml › tun_wg1: 1 peer: keys, AllowedIPs and endpoints are consistent",
+      "topic": "wireguard"
+    }
+  ],
+  "kind": "wireguard",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

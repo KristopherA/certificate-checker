@@ -94,6 +94,46 @@ adjust_differences:
       the host and no fingerprint pin. The Mac's PVE adjuster downgrades; web keeps the failure (rule 2).
 
 # Differences that the fixture cases do not exercise. Documented, not tested.
+# Offline checks and RADIUS (shared/fixtures/offline/cases.json, goldens in shared/golden/offline;
+# web/tests/test_offline_parity.py). Same rule: every listed difference must still occur.
+offline_differences:
+  - case: rad-top-not-sent
+    mac: [["rad-chain", "pass", "radius"]]
+    web: [["rad-chain", "fail", "radius"]]
+    reason: >-
+      KNOWN MAC BUG (Radius.swift:92-93, via ChainCheck.swift:28-40). The server sends leaf + intermediate
+      but not the root. ChainCheck passes the top certificate to SecTrust as its own anchor and never checks
+      its self-signature, so the Mac reports "Chain verifies to Test Rollover CA" (a false PASS). Web
+      (chaincheck.verify) requires the top to be self-issued with a valid self-signature, or to be or be
+      signed by a supplied anchor, and fails otherwise. To be fixed on the Mac in 0.10.1.
+  - case: rad-bad
+    mac: [["rad-chain", "pass", "radius"]]
+    web: [["rad-chain", "fail", "radius"]]
+    reason: >-
+      Same Mac bug. ipsec-bad.crt names Test IKEv2 CA as issuer but is not signed by it; the Mac's chain
+      builder drops the CA and anchors the lone leaf as itself, so it "verifies". Web reports the failed
+      signature link.
+  - case: ipsec-top-not-sent
+    mac: [["srv0-chain", "pass", "ipsec"]]
+    web: [["srv0-chain", "fail", "ipsec"]]
+    reason: Same Mac bug, in IPsec.swift srvN-chain (shared ChainCheck.verify).
+  - case: ipsec-bad
+    mac: [["srv0-chain", "pass", "ipsec"]]
+    web: [["srv0-chain", "fail", "ipsec"]]
+    reason: Same Mac bug as rad-bad, in IPsec.swift srvN-chain.
+  - case: munki-plist-only
+    mac:
+      - ["mtls-none", "fail", "vendor"]
+      - ["read-ca.pem", "fail", "vendor"]
+      - ["read-client.key", "fail", "vendor"]
+      - ["read-client.pem", "fail", "vendor"]
+    web: [["munki-pair", "info", "vendor"]]
+    reason: >-
+      With only ManagedInstalls.plist given, the Mac falls back to the ClientCertificatePath,
+      ClientKeyPath and SoftwareRepoCACertificate paths named inside it and reads them from the local
+      disk (here they do not exist, so read-* fail). Web never opens a path taken from an uploaded file:
+      it reads uploads only and says (munki-pair, info) that the certificate, key and CA must be uploaded.
+
 general:
   - topic: trust
     text: >-
@@ -164,4 +204,48 @@ general:
       per-service Guidance text shown in the Mac app.
   - topic: general
     text: >-
-      PKCS#7 bundles and PFX/P12 files are not read by web in M1 (M3, offline checks).
+      PKCS#7 bundles and PFX/P12 files are read in M3. PFX passwords are used in memory only and are never
+      echoed in findings or logs; a wrong password reports "could not be decrypted" without the value.
+  - topic: chain
+    text: >-
+      chaincheck.verify (RADIUS, IPsec, mTLS) is offline and stricter than the Mac's ChainCheck: the top
+      certificate must be anchored (see offline_differences), and pathLenConstraint is enforced as SecTrust
+      does. Revocation is not checked by either side (ipsec-revocation info). A certificate with a
+      malformed basicConstraints is a parse failure on web (cryptography refuses it), so the Mac's
+      chain-bcbad-k finding has no web equivalent.
+  - topic: radius
+    text: >-
+      The live RADIUS probe runs eapol_test with the same anonymous configuration as the Mac. The target goes
+      through the same TargetPolicy as the TCP probe (resolved on the shared resolver pool with a 5 s timeout,
+      every resolved address checked; loopback, link-local/metadata, unspecified and multicast refused as
+      rad-probe-input), and only the first allowed address is given to eapol_test. eapol_test is killed in a
+      finally block on any exception. SECRET IN ARGV: hostap's eapol_test takes the shared secret only from
+      -s (eapol_test.c getopt "a:A:c:C:ei:j:J:k:K:M:nN:o:p:P:r:R:s:St:T:vWX:", as_secret = optarg at ~1433;
+      default "radius", or "radsec" for RadSec, at ~1496); there is no config-file, environment or stdin
+      option. So for the few seconds a probe runs, the secret is readable in /proc/PID/cmdline by processes
+      that can see that PID (same as the Mac). Mitigation (least invasive, no hostap patch): run web in its
+      own container with its own PID namespace (never --pid=host, never a shared PID namespace with other
+      containers), as a dedicated non-root user, with nothing else in the container; the remaining exposure
+      is other processes inside that container and root on the Docker host (who can read the app's memory
+      anyway). On a shared non-container host, mount /proc with hidepid=2 or use a dedicated host. The secret
+      is redacted from the transcript and never logged or stored. CHAIN ORDER (confirmed in hostap source and
+      by the live run, test_radius_live.py::test_eapol_test_o_order_is_top_first): eapol_test -o writes one
+      PEM per OpenSSL verify-callback call (eapol_test_cert_cb from tls_openssl.c tls_verify_cb), i.e. the
+      path OpenSSL built, top (deepest) first down to the leaf; not the order the server sent, extra
+      certificates the server sent that are not on that path are absent, and a certificate can repeat
+      (depth 0 is re-emitted when a CA-level check fails, tls_openssl.c ~2937-2953). KNOWN MAC BUG:
+      Radius.swift:211 assumes leaf-first, so against a real FreeRADIUS the Mac would report rad-order plus
+      rad-isca / rad-notca / rad-unlinked / rad-name failures for a correct server (inferred: web produced
+      exactly this with the Mac's assumption in the M3 live run). Web de-duplicates, orders the chain
+      leaf-first by issuer links and does not report rad-order for the probe, because the wire order is not
+      visible in that file. XML (pfSense config.xml) uploads with any DTD are refused at the expat level
+      (also UTF-16), nesting deeper than 1000 levels is refused, and any RecursionError fails closed. Munki
+      plists with any ENTITY, or any DOCTYPE other than Apple's standard plist DOCTYPE, are refused, in any encoding (UTF-8 BOM, UTF-16/32 with or without a BOM, checked on the decoded text and
+      again at the expat level) (the
+      standard one is in every real ManagedInstalls.plist and the Mac fixtures, so refusing it would refuse
+      every file). PFX/P12: PKCS#12 PBE, PBKDF2 and MAC iteration counts are read from the ASN.1 before
+      anything is decrypted and refused above 1,000,000 (bags inside encrypted SafeContents are only visible
+      after decryption, so decryption runs in a separate worker process killed after 10 s, PFX_TIME_BUDGET_S;
+      the password reaches it over stdin only); a
+      damaged file is reported separately from a wrong password when the MAC verifies with the given
+      password or the file does not parse as PKCS#12.

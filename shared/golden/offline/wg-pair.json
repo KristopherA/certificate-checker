@@ -1,0 +1,44 @@
+{
+  "case": "wg-pair",
+  "findings": [
+    {
+      "id": "wg0-key-priv",
+      "kind": "key",
+      "severity": "pass",
+      "title": "wg-client.conf: Interface private key is a valid Curve25519 key",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg0-peers-ok",
+      "kind": "peer",
+      "severity": "pass",
+      "title": "wg-client.conf: 1 peer: keys, AllowedIPs and endpoints are consistent",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg1-key-priv",
+      "kind": "key",
+      "severity": "pass",
+      "title": "wg-server.conf: Interface private key is a valid Curve25519 key",
+      "topic": "wireguard"
+    },
+    {
+      "id": "wg1-peers-ok",
+      "kind": "peer",
+      "severity": "pass",
+      "title": "wg-server.conf: 2 peers: keys, AllowedIPs and endpoints are consistent",
+      "topic": "wireguard"
+    },
+    {
+      "id": "x-0-1",
+      "kind": "consistency",
+      "severity": "pass",
+      "title": "wg-client.conf and wg-server.conf list each other's public keys",
+      "topic": "wireguard"
+    }
+  ],
+  "kind": "wireguard",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

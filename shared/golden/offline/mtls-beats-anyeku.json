@@ -1,0 +1,44 @@
+{
+  "case": "mtls-beats-anyeku",
+  "findings": [
+    {
+      "id": "mtls-ca",
+      "kind": "mtls-ca",
+      "severity": "fail",
+      "title": "Client certificate does not chain to the supplied CA",
+      "topic": "stack"
+    },
+    {
+      "id": "mtls-eku",
+      "kind": "mtls-client",
+      "severity": "fail",
+      "title": "Client certificate beats04.example.test has anyExtendedKeyUsage instead of clientAuth",
+      "topic": "stack"
+    },
+    {
+      "id": "mtls-handshake",
+      "kind": "mtls-client",
+      "severity": "info",
+      "title": "Client certificate not presented in a live handshake",
+      "topic": "stack"
+    },
+    {
+      "id": "mtls-key-0",
+      "kind": "mtls-key",
+      "severity": "pass",
+      "title": "Private key matches the client certificate",
+      "topic": "stack"
+    },
+    {
+      "id": "mtls-valid",
+      "kind": "mtls-client",
+      "severity": "pass",
+      "title": "Client certificate beats04.example.test valid for 341 more days",
+      "topic": "stack"
+    }
+  ],
+  "kind": "mtls",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

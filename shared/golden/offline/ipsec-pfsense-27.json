@@ -1,0 +1,261 @@
+{
+  "case": "ipsec-pfsense-27",
+  "findings": [
+    {
+      "id": "srv1-id",
+      "kind": "san",
+      "severity": "fail",
+      "title": "SYNTHETIC site-to-site: Server certificate does not cover vpn.example.test",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca0-prv",
+      "kind": "keymatch",
+      "severity": "info",
+      "title": "CA SYNTHETIC Root CA private key is stored in this file",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca1-prv",
+      "kind": "keymatch",
+      "severity": "info",
+      "title": "CA SYNTHETIC VPN Intermediate CA private key is stored in this file",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ipsec-p1-disabled-2",
+      "kind": "info",
+      "severity": "info",
+      "title": "SYNTHETIC disabled is disabled; skipped",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ipsec-revocation",
+      "kind": "chain",
+      "severity": "info",
+      "title": "Revocation is not checked",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ipsec-unused",
+      "kind": "info",
+      "severity": "info",
+      "title": "2 certificates not used by IPsec skipped",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-p1-0",
+      "kind": "info",
+      "severity": "info",
+      "title": "Used by IPsec SYNTHETIC mobile IKEv2 (mobile clients)",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-p1-1",
+      "kind": "info",
+      "severity": "info",
+      "title": "Used by IPsec SYNTHETIC site-to-site (site-to-site)",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca0-bc",
+      "kind": "chain",
+      "severity": "pass",
+      "title": "CA SYNTHETIC Root CA has basicConstraints CA:TRUE",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca0-key",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "CA SYNTHETIC Root CA key: RSA 2048-bit",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca0-valid",
+      "kind": "validity",
+      "severity": "pass",
+      "title": "CA SYNTHETIC Root CA valid for 3626 more days",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca1-bc",
+      "kind": "chain",
+      "severity": "pass",
+      "title": "CA SYNTHETIC VPN Intermediate CA has basicConstraints CA:TRUE",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca1-key",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "CA SYNTHETIC VPN Intermediate CA key: RSA 2048-bit",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca1-sig",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "CA SYNTHETIC VPN Intermediate CA signature: sha256WithRSA",
+      "topic": "ipsec"
+    },
+    {
+      "id": "ca1-valid",
+      "kind": "validity",
+      "severity": "pass",
+      "title": "CA SYNTHETIC VPN Intermediate CA valid for 2976 more days",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-chain",
+      "kind": "chain",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate chain verifies to SYNTHETIC Root CA",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-eku",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate has the serverAuth EKU",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-eku-ike",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate has the IKE intermediate EKU (1.3.6.1.5.5.8.2.2)",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-id",
+      "kind": "san",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate covers the client identifier vpn.example.test",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-key",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate key: RSA 2048-bit",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-ku",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate keyUsage includes digitalSignature",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-lifetime",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate lifetime is 397 days (825 or fewer)",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-prv",
+      "kind": "keymatch",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate stored private key matches",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-san",
+      "kind": "san",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate SAN: vpn.example.test, 203.0.113.10",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-sig",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate signature: sha256WithRSA",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv0-valid",
+      "kind": "validity",
+      "severity": "pass",
+      "title": "SYNTHETIC IKEv2 server: Server certificate valid for 373 more days",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-chain",
+      "kind": "chain",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate chain verifies to SYNTHETIC Root CA",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-eku",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate has the serverAuth EKU",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-eku-ike",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate has the IKE intermediate EKU (1.3.6.1.5.5.8.2.2)",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-key",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate key: RSA 2048-bit",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-ku",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate keyUsage includes digitalSignature",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-lifetime",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate lifetime is 397 days (825 or fewer)",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-prv",
+      "kind": "keymatch",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate stored private key matches",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-san",
+      "kind": "san",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate SAN: fw1.example.test",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-sig",
+      "kind": "reissue",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate signature: sha256WithRSA",
+      "topic": "ipsec"
+    },
+    {
+      "id": "srv1-valid",
+      "kind": "validity",
+      "severity": "pass",
+      "title": "SYNTHETIC site-to-site: Server certificate valid for 373 more days",
+      "topic": "ipsec"
+    }
+  ],
+  "kind": "ipsec",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

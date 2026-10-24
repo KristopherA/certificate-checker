@@ -1,0 +1,16 @@
+{
+  "case": "dkim-revoked",
+  "findings": [
+    {
+      "id": "dkim-revoked",
+      "kind": "dkim",
+      "severity": "warning",
+      "title": "Key is revoked (empty p=)",
+      "topic": "general"
+    }
+  ],
+  "kind": "dkim",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import enum
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 
@@ -76,3 +77,15 @@ class Finding:
 def sort_findings(fs: list[Finding]) -> list[Finding]:
     """Worst first, then by id (the Swift sort)."""
     return sorted(fs, key=lambda f: (-f.severity, f.id))
+
+
+def unique_by[T, K](items: Iterable[T], key: Callable[[T], K]) -> list[T]:
+    """First occurrence of each key, in order (Swift `filter { seen.insert(key).inserted }`)."""
+    seen: set[K] = set()
+    out: list[T] = []
+    for x in items:
+        k = key(x)
+        if k not in seen:
+            seen.add(k)
+            out.append(x)
+    return out

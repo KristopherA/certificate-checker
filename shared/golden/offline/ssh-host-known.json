@@ -1,0 +1,30 @@
+{
+  "case": "ssh-host-known",
+  "findings": [
+    {
+      "id": "ssh-alg-ssh-ed25519",
+      "kind": "ssh",
+      "severity": "pass",
+      "title": "Ed25519 host key",
+      "topic": "weakKey"
+    },
+    {
+      "id": "ssh-alg-ssh-rsa",
+      "kind": "ssh",
+      "severity": "pass",
+      "title": "RSA host key is 3072 bits",
+      "topic": "weakKey"
+    },
+    {
+      "id": "ssh-known",
+      "kind": "ssh",
+      "severity": "warning",
+      "title": "host1.example.test is not in known_hosts",
+      "topic": "trust"
+    }
+  ],
+  "kind": "ssh",
+  "pinned_now": "2026-11-15T00:00:00Z",
+  "recorded_by": "macOS offline checks (GoldenExportTests.testRecordOfflineGolden)",
+  "schema": 1
+}
