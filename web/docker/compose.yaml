@@ -1,0 +1,65 @@
+# Certificate Checker Web with Docker Compose (spec sections 7-9). From this folder:
+#   docker compose build
+#   mkdir -p config secrets && docker run --rm -it certcheck-web:local hash-password | tail -1 > secrets/password_hash
+#   sudo chown 10001:10001 secrets/password_hash && sudo chmod 400 secrets/password_hash
+#   echo CERTCHECK_HOST_IP=10.0.0.20 > .env     # this host's LAN address (required; see DEPLOYMENT.md)
+#   docker compose up -d
+# Then browse to https://<this host>:8443 and compare the certificate fingerprint with `docker compose logs`.
+#
+# The image is generic. Everything site-specific lives in ./config (mounted read-only):
+#   config/targets.yaml   saved targets          config/ca/*.pem   internal CAs (widen trust for probes AND files)
+#   config/settings.yaml  limits and timeouts    config/tls/       cert.pem + key.pem for the UI (else self-signed)
+name: certcheck
+
+services:
+  certcheck:
+    image: ${CERTCHECK_IMAGE:-certcheck-web:local}
+    build:
+      context: ../..
+      dockerfile: web/docker/Dockerfile
+    restart: unless-stopped
+    ports:
+      # Bound to one host LAN address, never 0.0.0.0: published ports bypass ufw/firewalld rules. Note that through
+      # Docker's userland proxy (Docker Desktop, some IPv6 setups) every client can appear as the bridge gateway,
+      # which defeats the app's LAN-only check and per-address lockout; see DEPLOYMENT.md, "Client addresses".
+      - "${CERTCHECK_HOST_IP:?set CERTCHECK_HOST_IP to this host's LAN address, e.g. 10.0.0.20}:8443:8080"
+    environment:
+      CERTCHECK_PASSWORD_HASH_FILE: /run/secrets/certcheck_password_hash
+      # Names and addresses for the self-signed UI certificate (comma-separated), e.g. the host's LAN name and IP.
+      CERTCHECK_TLS_NAMES: ${CERTCHECK_TLS_NAMES:-certcheck.example.test}
+      # Optional: accept only these Host headers (comma-separated); empty accepts any.
+      CERTCHECK_ALLOWED_HOSTS: ${CERTCHECK_ALLOWED_HOSTS:-}
+    secrets:
+      - certcheck_password_hash
+    volumes:
+      - ./config:/config:ro
+      - certcheck-data:/data       # the generated UI certificate and key (0600, owner 10001)
+    # Hardening (spec section 9): non-root, read-only root filesystem, tmpfs scratch, no capabilities.
+    user: "10001:10001"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    # DNS (spec section 8): the default bridge uses Docker's embedded resolver, which forwards to the daemon's DNS.
+    # For split-horizon names, point it at the internal resolver, e.g.:
+    # dns: [10.0.0.53]
+    # Or use the host's network directly: real client addresses, the host's resolver and LAN reach. Then drop
+    # `ports:` and set CERTCHECK_BIND to the host's LAN address (the app listens on CERTCHECK_PORT, default 8080):
+    # network_mode: host
+    healthcheck:
+      test: ["CMD", "python", "-m", "app", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+secrets:
+  certcheck_password_hash:
+    file: ./secrets/password_hash
+
+volumes:
+  certcheck-data:

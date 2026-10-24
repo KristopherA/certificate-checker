@@ -197,6 +197,11 @@ def test_gitleaks_allowlist_matches_fixtures(shared: Path) -> None:
         if os.environ.get("CI"):
             pytest.fail("CI is set but .gitleaks.toml (Source/ or repo root) is missing: the allowlist gate cannot run")
         pytest.skip(".gitleaks.toml not present")
+    app = swift_root_module(shared).find_swift_root(shared.parent)
+    if app is None or not (app / "Tests" / "Fixtures").is_dir():
+        if os.environ.get("CI"):
+            pytest.fail("CI is set but Tests/Fixtures (repo root or Source/) is missing: the allowlist gate cannot run")
+        pytest.skip("Mac app Tests/Fixtures not present (web/shared-only tree): the allowlist covers those keys")
     r = subprocess.run(
         [sys.executable, str(shared / "tools" / "gitleaks_allowlist.py"), "--check"],
         capture_output=True,

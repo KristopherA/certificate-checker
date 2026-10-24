@@ -16,7 +16,9 @@ CERTCHECK_PASSWORD_HASH_FILE (a Docker secret; /run/secrets/certcheck_password_h
 from __future__ import annotations
 
 import ipaddress
+import logging
 import os
+import stat
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -25,6 +27,7 @@ from typing import Any
 import yaml
 
 MAX_UPLOAD_BYTES = 1024 * 1024  # the spec's 1 MB: the whole request body, all files and fields together
+log = logging.getLogger("certcheck.settings")
 DEFAULT_SECRET = Path("/run/secrets/certcheck_password_hash")
 TRUE = ("1", "true", "yes", "on")
 FALSE = ("0", "false", "no", "off")
@@ -199,8 +202,15 @@ def password_hash(e: Mapping[str, str]) -> str | None:
             return None
         try:
             raw = p.read_text(encoding="ascii").strip()
+            mode = p.stat().st_mode
         except (OSError, UnicodeDecodeError) as x:
             raise ValueError(f"password hash file {p}: cannot read ({type(x).__name__})") from None
+        if mode & (stat.S_IRWXG | stat.S_IRWXO):
+            # A warning, not a refusal: a compose secret is a bind mount that keeps the host file's mode, and the
+            # non-root container user can often read it only through group/other bits. The hash is not the
+            # password, but anyone who can read it can run an offline guessing attack, so say so.
+            log.warning("password hash file %s is readable by group or other (mode %04o); chmod 600 or chown it "
+                        "to the container user", p, stat.S_IMODE(mode))  # fmt: skip
         src = str(p)
     if not raw:
         return None

@@ -17,14 +17,22 @@
   (application/json cannot be sent cross-origin without a CORS preflight, which this app never grants) or
   carry the X-CertCheck-Request: 1 header (same reason), so a plain cross-site form cannot reach them.
 * Host header allowlist (CERTCHECK_ALLOWED_HOSTS) against DNS rebinding, when set.
+* Gateway-peer warning (M7b): behind Docker's userland proxy (Docker Desktop, some IPv6 setups) every client
+  arrives from the bridge gateway, so the LAN check passes for everyone and the per-address lockout lumps all
+  clients together. GatewayPeerWatch logs one warning when the first WATCH_REQUESTS non-loopback requests all
+  came from the container's default gateway (see web/docker/DEPLOYMENT.md, "Client addresses").
 """
 
 from __future__ import annotations
 
 import hmac
 import ipaddress
+import logging
 import secrets
+import socket
+import struct
 from collections.abc import Awaitable, Callable, MutableMapping
+from pathlib import Path
 from typing import Any
 
 from starlette.requests import Request
@@ -70,6 +78,59 @@ async def _plain(send: Send, status: int, text: str) -> None:
     await send({"type": "http.response.body", "body": body})
 
 
+log = logging.getLogger("certcheck.security")
+
+WATCH_REQUESTS = 20
+
+
+def default_gateways(route: Path = Path("/proc/net/route")) -> frozenset[str]:
+    """IPv4 default gateways from the Linux routing table (empty when unreadable, e.g. on macOS)."""
+    out: set[str] = set()
+    try:
+        lines = route.read_text().splitlines()[1:]
+    except OSError:
+        return frozenset()
+    for line in lines:
+        f = line.split()
+        if len(f) >= 3 and f[1] == "00000000" and f[2] != "00000000":
+            try:
+                out.add(socket.inet_ntoa(struct.pack("<I", int(f[2], 16))))
+            except (ValueError, struct.error):
+                continue
+    return frozenset(out)
+
+
+class GatewayPeerWatch:
+    """Warns once if every client so far is the default gateway (a proxy hides the real peers)."""
+
+    def __init__(self, gateways: frozenset[str] | None = None, threshold: int = WATCH_REQUESTS) -> None:
+        self.gateways = default_gateways() if gateways is None else gateways
+        self.threshold, self.seen, self.done = threshold, 0, not self.gateways
+
+    def observe(self, client: tuple[str, int] | list[Any] | None) -> None:
+        if self.done or not client:
+            return
+        addr = str(client[0]).split("%", 1)[0]
+        try:
+            if ipaddress.ip_address(addr).is_loopback:
+                return  # the container's own healthcheck
+        except ValueError:
+            return
+        if addr not in self.gateways:
+            self.done = True  # real peers are visible
+            return
+        self.seen += 1
+        if self.seen >= self.threshold:
+            self.done = True
+            log.warning(
+                "the last %d clients all came from the gateway %s: a proxy (Docker userland proxy or NAT) hides "
+                "real client addresses, so the LAN-only check passes for everyone and login lockout counts all "
+                "clients as one; see DEPLOYMENT.md, Client addresses",
+                self.seen,
+                addr,
+            )
+
+
 class Hardening:
     """Pure ASGI middleware (no BaseHTTPMiddleware buffering)."""
 
@@ -77,11 +138,13 @@ class Hardening:
         self, app: ASGIApp, *, max_body: int, allowed_hosts: tuple[str, ...] = (), lan_only: bool = True
     ) -> None:
         self.inner, self.max_body, self.allowed_hosts, self.lan_only = app, max_body, allowed_hosts, lan_only
+        self.watch = GatewayPeerWatch()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.inner(scope, receive, send)
             return
+        self.watch.observe(scope.get("client"))
         if self.lan_only and not lan_client(scope.get("client")):
             await _plain(send, 403, "This app only answers clients on the local network.")
             return

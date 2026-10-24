@@ -304,16 +304,24 @@ def _free_port() -> int:
         return int(s.getsockname()[1])
 
 
-def _handshake(port: int, version: ssl.TLSVersion) -> str:
+CBC_TLS12 = (
+    "ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:"
+    "ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:AES128-SHA256:AES256-SHA256:AES128-SHA:AES128-GCM-SHA256"
+)
+
+
+def _handshake(port: int, version: ssl.TLSVersion, ciphers: str = "ALL") -> str:
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     ctx.minimum_version = ctx.maximum_version = version
     with contextlib.suppress(ssl.SSLError):
-        ctx.set_ciphers("ALL:@SECLEVEL=0")  # let the client offer old suites, so only the server can refuse
+        ctx.set_ciphers(ciphers + ":@SECLEVEL=0")  # let the client offer old suites, so only the server can refuse
     with socket.create_connection(("127.0.0.1", port), timeout=5) as raw:
         try:
             with ctx.wrap_socket(raw) as t:
+                if version == ssl.TLSVersion.TLSv1_2:
+                    return f"{t.version()} {t.cipher()[0]}"  # type: ignore[index]
                 return str(t.version())
         except (ssl.SSLError, ConnectionError) as e:
             return f"refused: {e}"
@@ -337,7 +345,11 @@ def test_ui_listener_refuses_tls10_and_11(tmp_path: Path) -> None:
             except OSError:
                 assert proc.poll() is None and time.monotonic() < deadline, "server did not start"
                 time.sleep(0.1)
-        assert _handshake(port, ssl.TLSVersion.TLSv1_2) == "TLSv1.2"
+        got = _handshake(port, ssl.TLSVersion.TLSv1_2)
+        assert got.startswith("TLSv1.2 ECDHE-") and ("GCM" in got or "CHACHA20" in got), got
+        # AEAD only (review M6 #4): a client offering nothing but CBC suites (and static-RSA GCM) is refused.
+        assert _handshake(port, ssl.TLSVersion.TLSv1_2, CBC_TLS12).startswith("refused")
+        assert _handshake(port, ssl.TLSVersion.TLSv1_2, "ECDHE+CHACHA20").startswith("TLSv1.2 ECDHE-")
         assert _handshake(port, ssl.TLSVersion.TLSv1_3) == "TLSv1.3"
         assert _handshake(port, ssl.TLSVersion.TLSv1).startswith("refused")
         assert _handshake(port, ssl.TLSVersion.TLSv1_1).startswith("refused")

@@ -1,0 +1,47 @@
+# macOS CI for the Swift CLI and Mac app (spec section 10): runs on the app sources and on shared/ (the findings
+# catalogue and goldens are shared with the web build). Uses only generic defaults: no organisation patterns.
+name: macos
+
+on:
+  push:
+    branches: [main]
+    paths: ["Sources/**", "Tests/**", "Resources/**", "Tools/**", "project.yml", "test.sh", "check-identifiers.sh",
+            "shared/**", ".github/workflows/macos.yml"]
+  pull_request:
+    paths: ["Sources/**", "Tests/**", "Resources/**", "Tools/**", "project.yml", "test.sh", "check-identifiers.sh",
+            "shared/**", ".github/workflows/macos.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: XcodeGen 2.46.0 (pinned release zip, sha256-checked)
+        env:
+          XCODEGEN_VERSION: "2.46.0"
+          XCODEGEN_SHA256: "4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806"
+        run: |
+          set -euo pipefail
+          curl -fsSLo "$RUNNER_TEMP/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          echo "${XCODEGEN_SHA256}  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/xcodegen/bin/xcodegen" --version
+      # Organisation patterns live only on the maintainer's Mac; CI runs the generic checks (home paths, private
+      # addresses) and the full XCTest suite.
+      - run: ./test.sh
+        env:
+          CC_IDENTIFIER_PATTERNS: none
+          CC_IDENTIFIER_LOCAL: none
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer

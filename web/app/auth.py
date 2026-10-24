@@ -7,6 +7,7 @@ between processes or threads that run separate event loops; the app runs one uvi
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import secrets
 import time
@@ -20,6 +21,7 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 SESSION_COOKIE = "certcheck_session"
 MAX_SESSIONS = 32  # one user; the oldest session is dropped beyond this
 MAX_PASSWORD = 1024  # longer submissions are refused before hashing (argon2 cost is per byte too)
+MAX_TRACKED = 4096  # most client addresses Lockout and RateLimit remember
 GLOBAL_FACTOR = 4  # all addresses together get this many times the per-address failure allowance
 
 Clock = Callable[[], float]
@@ -30,9 +32,22 @@ def hash_password(password: str) -> str:
     return _hasher.hash(password)
 
 
+_dummy: list[str] = []  # one argon2id hash of a throwaway value, made on first use
+
+
+def _dummy_verify() -> None:
+    """Spend one argon2 verify so an empty or overlong password takes as long as a wrong one (no timing tell)."""
+    if not _dummy:
+        _dummy.append(_hasher.hash(secrets.token_urlsafe(16)))
+    with contextlib.suppress(VerifyMismatchError, VerificationError, InvalidHashError):
+        _hasher.verify(_dummy[0], "certcheck-dummy-password")
+
+
 def verify_password(stored: str, password: str) -> bool:
-    """Constant work per attempt (argon2 verify); a malformed stored hash fails closed."""
+    """Constant work per attempt (argon2 verify); a malformed stored hash fails closed. Empty and overlong
+    passwords are refused but still pay one dummy verify, so their timing matches a wrong password."""
     if not password or len(password) > MAX_PASSWORD:
+        _dummy_verify()
         return False
     try:
         return _hasher.verify(stored, password)
@@ -118,8 +133,8 @@ class Lockout:
             if len(q) >= limit:
                 self._until[key] = now + self.lockout_s
                 q.clear()
-        if len(self._fails) > 4096:  # bounded memory: forget the quietest addresses
-            for k in sorted(self._fails, key=lambda k: self._fails[k][-1] if self._fails[k] else 0)[:2048]:
+        if len(self._fails) > MAX_TRACKED:  # bounded memory: forget the quietest addresses
+            for k in sorted(self._fails, key=lambda k: self._fails[k][-1] if self._fails[k] else 0)[: MAX_TRACKED // 2]:
                 if k != "*":
                     del self._fails[k]
         for k in [k for k, t in self._until.items() if t <= now]:
@@ -145,7 +160,11 @@ class RateLimit:
         if len(q) >= self.per_minute:
             return max(1, int(60 - (now - q[0]) + 0.999))
         q.append(now)
-        if len(self._log) > 4096:
+        if len(self._log) > MAX_TRACKED:  # bounded memory, as in Lockout: drop idle windows, then the quietest
             for k in [k for k, v in self._log.items() if not v or now - v[-1] >= 60]:
                 del self._log[k]
+            if len(self._log) > MAX_TRACKED:
+                for k in sorted(self._log, key=lambda k: self._log[k][-1])[: MAX_TRACKED // 2]:
+                    if k != addr:
+                        del self._log[k]
         return 0

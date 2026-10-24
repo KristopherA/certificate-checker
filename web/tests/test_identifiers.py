@@ -82,11 +82,27 @@ ALLOWED_HOSTS = (
 # invalid.example: the RFC 2606 reserved EAP probe identity, exactly as in Radius.swift.
 # Xcode.app: the DEVELOPER_DIR default in record-golden.sh. mask*.icloud.com: Apple's public Private Relay
 # hosts, named in the split-DNS advice exactly as in Resolution.swift.
+# Python logging calls: log.info(...) / logger.info / logging.info end in ".info", a real TLD. Exactly those
+# names (optionally on self.) are skipped; any other label before or after the logger name is still a hit,
+# so the exemption cannot hide a hostname (see test_logging_skip_is_exact).
+LOGGING_CALL = re.compile(r"(?:self\.)?(?:log|logger|logging)\.info")
+
+
+def logging_call(h: str) -> bool:
+    return LOGGING_CALL.fullmatch(h.lower()) is not None
+
+
 EMAIL = re.compile(rb"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)")
+
+
+# Allowed as the exact host only (no subdomains): registries that host anyone's images.
+EXACT_HOSTS = ("ghcr.io",)  # pinned uv build image in web/docker/Dockerfile
 
 
 def allowed_host(h: str) -> bool:
     h = h.lower().rstrip(".")
+    if h in EXACT_HOSTS:
+        return True
     return any(h == a.lower() or h.endswith("." + a.lower()) for a in ALLOWED_HOSTS)
 
 
@@ -112,7 +128,7 @@ def test_hostnames_are_examples() -> None:
         for p in files()
         if not _vendored(p)
         for m in HOSTNAME.finditer(p.read_bytes())
-        if (h := m.group(1).decode().lower()) not in ENUM_MEMBERS and not allowed_host(h)
+        if (h := m.group(1).decode().lower()) not in ENUM_MEMBERS and not allowed_host(h) and not logging_call(h)
     ]
     assert not hits, hits
 
@@ -123,6 +139,17 @@ def test_enum_skip_is_exact() -> None:
     for fake in ("topic." + "example-corp" + ".ca", "severity." + "internal"):
         assert fake not in ENUM_MEMBERS
         assert HOSTNAME.fullmatch(fake.encode())
+
+
+def test_logging_skip_is_exact() -> None:
+    # Built at runtime so the scan does not see the fakes.
+    for ok in ("log" + ".info", "logging" + ".info", "logger" + ".info", "self.log" + ".info", "LOG" + ".INFO"):
+        assert HOSTNAME.fullmatch(ok.encode()) and logging_call(ok), ok
+    for bad in ("corp.log" + ".info", "log.example-corp" + ".info", "logs" + ".info", "log" + ".com", "blog" + ".info"):
+        assert HOSTNAME.fullmatch(bad.encode()) and not logging_call(bad), bad
+    # The real call sites are found by the scan and pass only through this exemption.
+    src = (ROOTS[0] / "app" / "main.py").read_bytes()
+    assert any(logging_call(m.group(1).decode()) for m in HOSTNAME.finditer(src))
 
 
 def test_emails_are_examples() -> None:
@@ -137,3 +164,10 @@ def test_emails_are_examples() -> None:
             ):
                 hits.append(f"{p}: {addr}")
     assert not hits, hits
+
+
+def test_exact_hosts_do_not_cover_subdomains() -> None:
+    # Built at runtime so the scan does not see the fakes.
+    assert allowed_host("ghcr" + ".io")
+    for bad in ("evil.ghcr" + ".io", "x.y.ghcr" + ".io", "ghcr.io" + ".evil.com", "notghcr" + ".io"):
+        assert not allowed_host(bad), bad

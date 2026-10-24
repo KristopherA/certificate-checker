@@ -328,7 +328,7 @@ def create_app(settings: Settings | None = None, policy: probe.TargetPolicy | No
                         secure=st.secure_cookies, path="/")  # fmt: skip
         resp.set_cookie(security.CSRF_COOKIE, security.new_token(), httponly=True, samesite="strict",
                         secure=st.secure_cookies, path="/")  # fmt: skip
-        log.warning("login from %s", addr)
+        log.info("login from %s", addr)
         return resp
 
     def locked(request: Request, wait: int) -> Response:

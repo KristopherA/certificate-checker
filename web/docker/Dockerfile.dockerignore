@@ -1,0 +1,13 @@
+# Build context is the repository root; only what the Dockerfile copies is sent.
+*
+!web/pyproject.toml
+!web/uv.lock
+!web/app/**
+!web/certcheck/**
+!shared/findings.yaml
+!shared/web-findings.yaml
+**/__pycache__
+**/*.pyc
+**/.DS_Store
+**/* 2
+**/* 2.*
