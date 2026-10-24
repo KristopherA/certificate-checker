@@ -47,7 +47,8 @@ PRIVATE_KEY = re.compile(
 B64_RUN = re.compile(rb"[A-Za-z0-9+/][A-Za-z0-9+/\r\n]{63,}={0,2}")
 # One literal file path: ^, then only plain characters or backslash-escaped ones, then $.
 EXACT_PATH = re.compile(r"\^((?:[A-Za-z0-9_/-]|\\[^A-Za-z0-9])+)\$")
-PINNED = re.compile(r"'''\^(.+?)\$''',\s*# sha256 ([0-9a-f]{64})")
+# The comment pins the key blocks, not the file: sha256 of the blocks joined by newlines (see digest).
+PINNED = re.compile(r"'''\^(.+?)\$''',\s*# key-blocks sha256 ([0-9a-f]{64})")
 
 
 class ConfigError(Exception):
@@ -118,7 +119,7 @@ def digest(path: Path) -> str:
 
 
 def block(repo: Path) -> str:
-    lines = "".join(f"  '''^{re.escape(p)}$''',  # sha256 {digest(f)}\n" for p, f in key_files(repo))
+    lines = "".join(f"  '''^{re.escape(p)}$''',  # key-blocks sha256 {digest(f)}\n" for p, f in key_files(repo))
     return BEGIN + lines + END
 
 

@@ -4,6 +4,7 @@ patterns stay in local files outside the tree and are applied by check-identifie
 
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import re
 from pathlib import Path
@@ -89,10 +90,27 @@ def allowed_host(h: str) -> bool:
     return any(h == a.lower() or h.endswith("." + a.lower()) for a in ALLOWED_HOSTS)
 
 
+# Vendored third-party code, pinned by hash: minified htmx has JavaScript (regex test calls) that
+# looks like a hostname. Only this exact file is skipped by the hostname scan; the address, home-path and
+# email scans still cover it.
+VENDORED = {"web/app/static/htmx.min.js": "d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717"}
+
+
+def _vendored(p: Path) -> bool:
+    rel = p.relative_to(ROOTS[0].parent).as_posix()
+    return rel in VENDORED and hashlib.sha256(p.read_bytes()).hexdigest() == VENDORED[rel]
+
+
+def test_vendored_files_are_pinned() -> None:
+    for rel, digest in VENDORED.items():
+        assert hashlib.sha256((ROOTS[0].parent / rel).read_bytes()).hexdigest() == digest, rel
+
+
 def test_hostnames_are_examples() -> None:
     hits = [
         f"{p}: {h}"
         for p in files()
+        if not _vendored(p)
         for m in HOSTNAME.finditer(p.read_bytes())
         if (h := m.group(1).decode().lower()) not in ENUM_MEMBERS and not allowed_host(h)
     ]

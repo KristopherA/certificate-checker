@@ -175,9 +175,11 @@ general:
       app has no such policy.
   - topic: trust
     text: >-
-      SecTrust may fetch missing intermediates (AIA) for live probes; web never does in M1
-      (AIA fetch is optional and off by default, M4). A server that omits an intermediate can
-      therefore be trusted on the Mac but not on web.
+      SecTrust may fetch missing intermediates (AIA) for live probes on its own; web does so only with
+      the AIA option (certcheck.check, off by default, M4): at most 3 caIssuers fetches, each through
+      TargetPolicy, and a fetched certificate is kept only if its subject and signature match; roots are
+      never added. Without the option, a server that omits an intermediate can be trusted on the Mac but
+      not on web; with it web reports aia-fetched (warning), which the Mac has no equivalent of.
   - topic: connection
     text: >-
       The Mac reports the TLS version as "TLS 1.2"; web uses Python's names ("TLSv1.2"), except in
@@ -200,12 +202,44 @@ general:
       rules at the top of adjust_differences); a pin match never bypasses them.
   - topic: general
     text: >-
-      Deferred from M2: the Docker registry /v2/ API probe and WinRM HTTP (5985) opt-in checks, and the
-      per-service Guidance text shown in the Mac app.
+      Deferred from M2: the Docker registry /v2/ API probe and WinRM HTTP (5985) opt-in checks. The Guidance
+      text arrived in M5 (certcheck.guidance, a port of Guidance.swift): generic, IIS, Apache, nginx,
+      Synology, Proxmox VE/PBS, Munki and STARTTLS steps match the Mac; the RDP, RD Gateway, WinRM, Docker
+      registry, Elastic Stack, FileMaker, Retrospect, HP printer and Barracuda platforms fall back to the
+      generic "reissue and redeploy" steps, and the Mac's knowledge-base links are omitted.
   - topic: general
     text: >-
       PKCS#7 bundles and PFX/P12 files are read in M3. PFX passwords are used in memory only and are never
       echoed in findings or logs; a wrong password reports "could not be decrypted" without the value.
+  - topic: general
+    text: >-
+      M4 web-only options (all off by default, per check or per target): revocation, legacy TLS 1.0/1.1
+      and AIA. Their findings (rev-*, must-staple, rev-urls, legacy-*, aia-*, ct-sct) are catalogued in
+      shared/web-findings.yaml, not findings.yaml, and are added only by the live-probe orchestrator
+      (certcheck.check), so the parity goldens are unaffected.
+  - topic: general
+    text: >-
+      Revocation (web only) runs stapled OCSP, then OCSP, then CRL per certificate and stops at the first
+      verified answer; otherwise it reports COULD NOT CHECK with the reason (self-signed: not applicable).
+      Python's ssl module cannot read a stapled OCSP response, so web opens one extra pyOpenSSL
+      connection (TLS 1.2+, no certificate verification, OCSP status request) to the same address the probe
+      used. OCSP, CRL and AIA URLs are outbound requests: http/https only, no userinfo, TargetPolicy on every
+      hop, at most 3 redirects, 5 s per fetch, and 256 KB (AIA), 64 KB (OCSP) or 10 MB (CRL); every URL
+      contacted is listed (rev-urls, ProbeResult.contacted); a URL refused by TargetPolicy is listed
+      separately as blocked (ProbeResult.blocked), never as contacted. Partitioned and indirect CRLs are
+      refused, and so is a CRL whose IDP scope does not cover the certificate (onlyContainsCACerts for an
+      end-entity certificate, onlyContainsUserCerts for a CA): that CRL is unusable, never GOOD.
+  - topic: general
+    text: >-
+      Legacy mode (web only) uses a fresh SSLContext per connection, pinned to TLS 1.0 or 1.1 at
+      SECLEVEL=0; the default probe context and the app's listener stay TLS 1.2+. A server that accepts
+      either version gets an INSECURE legacy-TLSv1 / legacy-TLSv1.1 fail listing its ciphers; a result
+      that needed legacy mode is badged (ProbeResult.legacy, legacy-mode). Without legacy mode a
+      version/cipher handshake failure adds legacy-hint. The Mac app cannot connect to such servers.
+  - topic: general
+    text: >-
+      CT (ct-sct, web only) counts SCTs embedded in the leaf; SCTs delivered in the TLS extension or in OCSP
+      are not counted and SCT signatures are not verified.
   - topic: chain
     text: >-
       chaincheck.verify (RADIUS, IPsec, mTLS) is offline and stricter than the Mac's ChainCheck: the top
@@ -249,3 +283,24 @@ general:
       the password reaches it over stdin only); a
       damaged file is reported separately from a wrong password when the MAC verifies with the given
       password or the file does not parse as PKCS#12.
+  - topic: general
+    text: >-
+      M5 web UI and REST API (FastAPI, server-rendered Jinja2, vendored htmx 2.0.11; no JS build). Auth,
+      TLS for the UI, LAN bind, rate limits and settings.yaml are M6: until then the app binds 127.0.0.1
+      over plain HTTP (CERTCHECK_BIND to change), only a concurrency cap (CERTCHECK_MAX_CONCURRENT, 429
+      beyond it) limits load, and the CSRF cookie is not Secure unless CERTCHECK_SECURE_COOKIES is set.
+      Every route is hardened as if reachable by anyone on the LAN: strict CSP (default-src 'none',
+      script-src 'self', no inline script or style, no eval in htmx), double-submit CSRF tokens on all UI
+      forms, Origin and Sec-Fetch-Site checks on every unsafe request, API POSTs need a JSON body or the
+      X-CertCheck-Request header (both force a CORS preflight), an optional Host allowlist
+      (CERTCHECK_ALLOWED_HOSTS) against DNS rebinding, autoescaped output everywhere, and a 1 MB cap on the
+      whole request body, buffered in memory (stricter than filecheck's 2 MB per file); uploads are never
+      written to disk. Fix guidance is copy-only text; the app never runs it. Exports are data: links, so
+      no result is stored on the server. CERTCHECK_ANCHORS (a PEM bundle) replaces the trust store; the
+      /config/ca directory from the spec is not wired yet. Swagger/ReDoc pages are disabled (they need a
+      CDN and inline script); the OpenAPI document at /api/v1/openapi.json is public by design (it only
+      describes the API and holds no data or secrets; M6 auth will decide whether it stays public). There is
+      no Referer fallback when Origin is missing: the request is refused when Sec-Fetch-Site is cross-site
+      or same-site, or when Origin is present and is not this origin; a request with neither header (curl,
+      scripts) passes this check and still needs the CSRF token (UI forms) or the JSON body /
+      X-CertCheck-Request header (API). Browsers that send neither are not supported.

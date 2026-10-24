@@ -10,13 +10,16 @@ import datetime as dt
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from cryptography.exceptions import UnsupportedAlgorithm
 
 from . import analysis, pfx, trust
 from .model import Finding, Purpose, Severity, Topic, sort_findings
 from .x509info import Cert, KeyInfo, Request, key_info, parse_cert, parse_request, private_key_facts
+
+if TYPE_CHECKING:
+    import subprocess
 
 PFX_PASSWORD = "The PFX/P12 password is incorrect."  # noqa: S105 - a user-facing message, not a password
 PFX_CORRUPT = "The PFX/P12 file is damaged or not a PFX/P12 file."
@@ -93,6 +96,16 @@ _WORKER_CODE = (
 PFX_TIMEOUT = "The PFX/P12 took too long to open (key derivation over the time limit) and is refused."
 
 
+def _kill_group(p: subprocess.Popen[bytes]) -> None:
+    import contextlib
+    import os
+    import signal
+
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(p.pid, signal.SIGKILL)  # pgid == pid because of start_new_session
+    p.kill()
+
+
 def _pkcs12_worker(data: bytes, password: str) -> dict[str, object]:
     """cryptography's load_pkcs12 in a child process killed after PFX_TIME_BUDGET_S (pfx_worker docstring)."""
     import json
@@ -106,11 +119,12 @@ def _pkcs12_worker(data: bytes, password: str) -> dict[str, object]:
     with subprocess.Popen(  # noqa: S603 - fixed argv, no shell; the password goes over stdin only
         [sys.executable, "-I", "-c", _WORKER_CODE, root],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env,
+        start_new_session=True,  # review M3c S1: own process group, so a timeout kills any grandchild too
     ) as p:  # fmt: skip
         try:
             out, _ = p.communicate(payload, timeout=PFX_TIME_BUDGET_S)
         except subprocess.TimeoutExpired:
-            p.kill()
+            _kill_group(p)
             p.communicate()
             raise ValueError(PFX_TIMEOUT) from None
     try:
@@ -140,11 +154,17 @@ def load_pkcs12(data: bytes, password: str | None, r: FileReport) -> None:
         if pfx.mac_matches(params, password or "") is True:
             raise ValueError(PFX_CORRUPT)
         raise ValueError(PFX_PASSWORD)
-    certs = cast(list[str], res.get("certs") or [])
-    r.certificates += [parse_cert(base64.b64decode(c)) for c in certs]
-    spki = res.get("spki")
-    if isinstance(spki, str):
-        r.keys.append(key_info(load_der_public_key(base64.b64decode(spki))))
+    # Review M3c S2: the worker said "ok" but its output still has to parse; never show raw ASN.1/parser errors.
+    try:
+        certs = cast(list[str], res.get("certs") or [])
+        parsed = [parse_cert(base64.b64decode(c, validate=True)) for c in certs]
+        spki = res.get("spki")
+        key = key_info(load_der_public_key(base64.b64decode(spki, validate=True))) if isinstance(spki, str) else None
+    except Exception:  # noqa: BLE001 - any failure here is a malformed PFX, reported with one fixed message
+        raise ValueError(PFX_CORRUPT) from None
+    r.certificates += parsed
+    if key is not None:
+        r.keys.append(key)
         r.key_formats.append("PFX identity")
 
 

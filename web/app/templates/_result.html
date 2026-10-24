@@ -1,0 +1,70 @@
+<section class="result">
+{% if doc.kind == "probe" %}
+  <h2>{{ doc.target.host }}:{{ doc.target.port }} <span class="sev sev-{{ doc.worst }}">{{ doc.worst }}</span>
+  {% if doc.legacy %}<span class="badge-legacy" title="Connected with TLS 1.0/1.1">LEGACY TLS</span>{% endif %}</h2>
+  <dl class="facts">
+    <dt>Profile</dt><dd>{{ doc.target.profile }}</dd>
+    <dt>Connected IP</dt><dd>{{ doc.connected_ip or "none" }} <span class="muted">(resolver: {{ doc.resolver }})</span></dd>
+    <dt>TLS</dt><dd>{{ doc.tls_version or "none" }} {{ doc.cipher or "" }}</dd>
+    {% if doc.error %}<dt>Error</dt><dd class="sev-fail">{{ doc.error }}</dd>{% endif %}
+  </dl>
+{% else %}
+  <h2>{{ doc.files | join(", ") }} <span class="sev sev-{{ doc.worst }}">{{ doc.worst }}</span></h2>
+  <dl class="facts">
+    <dt>Hostname</dt><dd>{{ doc.hostname or "none" }}</dd>
+    <dt>Purpose</dt><dd>{{ doc.purpose }}</dd>
+    {% for k in doc["keys"] %}<dt>Key</dt><dd>{{ k }}</dd>{% endfor %}
+    {% for q in doc.requests %}<dt>CSR</dt><dd>{{ q.subject }} ({{ q.dns_names | join(", ") }}; {{ q.key }})</dd>{% endfor %}
+  </dl>
+{% endif %}
+{% if doc.trust %}<p class="trust {{ 'ok' if doc.trust.trusted else 'sev-fail' }}">Trust: {{ doc.trust.message }}</p>{% endif %}
+
+<h3>Findings</h3>
+<ul class="findings">
+{% for f in doc.findings %}
+  <li class="sev-{{ f.severity }}"><strong>{{ f.severity | upper }}</strong> {{ f.title }}{% if f.detail %}: {{ f.detail }}{% endif %}</li>
+{% else %}
+  <li>No findings.</li>
+{% endfor %}
+</ul>
+
+{% if doc.chain %}
+<h3>Chain</h3>
+<ol class="chain">
+{% for c in doc.chain %}
+  <li><strong>{{ c.subject }}</strong><br><span class="muted">Issuer: {{ c.issuer }} · Expires {{ c.not_after }}</span><br><code class="fp">{{ c.sha256 }}</code></li>
+{% endfor %}
+</ol>
+{% endif %}
+
+{% if doc.get("contacted") %}
+<h3>Contacted (AIA/OCSP/CRL)</h3>
+<ul>{% for u in doc.contacted %}<li><code>{{ u }}</code></li>{% endfor %}</ul>
+{% endif %}
+
+{% if doc.get("blocked") %}
+<h3>Blocked by the target policy (not contacted)</h3>
+<ul>{% for u in doc.blocked %}<li><code>{{ u }}</code></li>{% endfor %}</ul>
+{% endif %}
+
+{% if doc.guidance %}
+<h3>How to fix</h3>
+<p class="muted">Copy only. Review every command before you run it on your own machine; this app never runs them.</p>
+{% for g in doc.guidance %}
+  <article class="guide">
+    <h4>{{ g.title }}</h4>
+    <ol>{% for s in g.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+    {% for cmd in g.commands %}
+    <div class="cmd"><pre><code>{{ cmd }}</code></pre><button type="button" class="copy">Copy</button></div>
+    {% endfor %}
+  </article>
+{% endfor %}
+{% endif %}
+
+{% if doc.get("openssl_command") %}
+<h3>Reproduce</h3>
+<div class="cmd"><pre><code>{{ doc.openssl_command }}</code></pre><button type="button" class="copy">Copy</button></div>
+{% endif %}
+
+<p class="exports">Export: <a href="{{ exports.json }}" download="certcheck.json">JSON</a> · <a href="{{ exports.markdown }}" download="certcheck.md">Markdown</a></p>
+</section>

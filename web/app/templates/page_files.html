@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}File verify · Certificate Checker{% endblock %}
+{% block main %}
+<h1>Verify certificate files</h1>
+<p class="muted">Certificates, chains, keys, CSRs, PKCS#7 or PFX/P12. Up to {{ max_kb }} KB in total. Files and passwords stay in memory and are never stored.</p>
+<form method="post" action="/ui/files/verify" enctype="multipart/form-data" hx-post="/ui/files/verify" hx-encoding="multipart/form-data" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy" class="grid" data-max-bytes="{{ max_kb * 1024 }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label class="span drop" id="drop">Files <input type="file" name="files" multiple required></label>
+  <p class="span muted" id="filesize"></p>
+  <label>Hostname to match <input name="hostname" maxlength="253" placeholder="optional" spellcheck="false"></label>
+  <label>Purpose
+    <select name="purpose">{% for p in purposes %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select>
+  </label>
+  <label>PFX/P12 password <input type="password" name="password" maxlength="1024" autocomplete="off"></label>
+  <div class="span"><button type="submit">Verify</button> <span id="busy" class="indicator">Checking…</span></div>
+</form>
+<div id="result" hx-disable aria-live="polite"></div>
+{% endblock %}

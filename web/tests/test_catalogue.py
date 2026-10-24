@@ -9,7 +9,7 @@ from types import ModuleType
 
 import pytest
 
-from certcheck.shared import SEVERITIES, load_catalogue
+from certcheck.shared import SEVERITIES, load_catalogue, load_web_catalogue
 
 
 def test_catalogue_loads_and_is_consistent() -> None:
@@ -211,13 +211,24 @@ def test_every_web_finding_id_is_catalogued() -> None:
     import re
 
     pkg = Path(__file__).resolve().parents[1] / "certcheck"
-    cat = load_catalogue().entries
+    cat = load_catalogue().entries + load_web_catalogue()
     exact = {e.id for e in cat}
     prefixes = {e.id.split("{")[0] for e in cat if "{" in e.id}
-    lit = re.compile(r'Finding\(\s*"([a-z0-9][a-z0-9-]*)"')
+    lit = re.compile(r'Finding\(\s*f?"([a-z0-9][a-z0-9-]*)')
     missing = set()
     for p in pkg.glob("*.py"):
         for i in lit.findall(p.read_text("utf-8")):
             if i not in exact and not any(i.startswith(x) for x in prefixes if x):
                 missing.add(f"{p.name}:{i}")
     assert not missing, sorted(missing)
+
+
+def test_web_only_catalogue_is_consistent() -> None:
+    cat = load_catalogue()
+    web = load_web_catalogue()
+    swift_ids = {e.id for e in cat.entries}
+    assert web and not ({e.id for e in web} & swift_ids)
+    swift_prefixes = {i.split("{")[0] for i in swift_ids}
+    for e in web:
+        assert e.severity in SEVERITIES and e.topic in cat.topics, e
+        assert e.id.split("{")[0] not in swift_prefixes, e.id

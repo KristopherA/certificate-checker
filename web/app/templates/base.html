@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"historyEnabled":false,"selfRequestsOnly":true,"responseHandling":[{"code":"204","swap":false},{"code":"[23]..","swap":true},{"code":"[45]..","swap":true,"error":true}]}'>
+<title>{% block title %}Certificate Checker{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/htmx.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<header class="bar">
+  <strong>Certificate Checker</strong>
+  <nav>
+    <a href="/" {% if nav == "probe" %}aria-current="page"{% endif %}>Probe</a>
+    <a href="/files" {% if nav == "files" %}aria-current="page"{% endif %}>File verify</a>
+    <a href="/targets" {% if nav == "targets" %}aria-current="page"{% endif %}>Saved targets</a>
+    <a href="/api/v1/openapi.json">API</a>
+  </nav>
+</header>
+<main>
+{% block main %}{% endblock %}
+</main>
+<footer class="muted">Read-only checker. Fix guidance is text to copy and review; this app never runs it.</footer>
+</body>
+</html>

@@ -2,7 +2,8 @@
 
 Port of Probe.runSync (Source/Sources/Core/Probe.swift): plain TLS, the STARTTLS dialogues (SMTP,
 IMAP, POP3, LDAP), the MySQL SSLRequest and the RDP X.224 negotiation, then the Remote / Appliance /
-Stack / Vendor adjustments and the split-DNS / firewall hints. Legacy TLS 1.0/1.1 arrives in M4.
+Stack / Vendor adjustments and the split-DNS / firewall hints. Legacy TLS 1.0/1.1, AIA, CT and revocation
+are layered on top by certcheck.check (opt-in, M4); run() itself never uses them.
 
 Safety: resolves once (5 s lookup timeout) and connects only to the addresses that lookup returned
 (or the resolve override), each checked by TargetPolicy. One TCP attempt per address in resolver
@@ -88,6 +89,9 @@ class ProbeResult:
     duration_s: float = 0.0
     trust: trust.TrustResult | None = None
     negotiation: list[Finding] = field(default_factory=list)  # RDP negotiation findings
+    legacy: bool = False  # result came from the legacy TLS 1.0/1.1 context (UI badge), set by certcheck.check
+    contacted: list[str] = field(default_factory=list)  # outbound AIA/OCSP/CRL URLs (certcheck.check)
+    blocked: list[str] = field(default_factory=list)  # AIA/OCSP/CRL URLs refused by TargetPolicy, never contacted
 
     @property
     def worst(self) -> Severity:

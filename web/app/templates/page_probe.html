@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Probe · Certificate Checker{% endblock %}
+{% block main %}
+<h1>Probe a server</h1>
+<form method="post" action="/ui/check" hx-post="/ui/check" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy" class="grid">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Host <input name="host" required maxlength="253" placeholder="server.example.com" autocomplete="off" spellcheck="false"></label>
+  <label>Port <input name="port" inputmode="numeric" pattern="[0-9]{1,5}" maxlength="5" placeholder="profile default"></label>
+  <label>Profile
+    <select name="profile">
+    {% for value, port in profiles %}<option value="{{ value }}">{{ value }} ({{ port }})</option>{% endfor %}
+    </select>
+  </label>
+  <label>Platform (for fix guidance)
+    <select name="platform">
+      <option value="">From profile</option>
+      {% for p in platforms %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+    </select>
+  </label>
+  <details class="span">
+    <summary>Advanced</summary>
+    <div class="grid">
+      <label>SNI <input name="sni" maxlength="253" placeholder="defaults to host" spellcheck="false"></label>
+      <label>Verify name <input name="verify_name" maxlength="253" placeholder="defaults to SNI" spellcheck="false"></label>
+      <label>Connect to IP <input name="resolve" maxlength="64" placeholder="like curl --resolve" spellcheck="false"></label>
+      <label>Address family
+        <select name="family"><option value="any">Any</option><option value="ipv4">IPv4</option><option value="ipv6">IPv6</option></select>
+      </label>
+      <label class="span">Fingerprint pin (Proxmox only) <input name="fingerprint_pin" maxlength="200" spellcheck="false"></label>
+    </div>
+  </details>
+  <fieldset class="span">
+    <legend>Options</legend>
+    <label class="inline"><input type="checkbox" name="aia" value="1"> Fetch missing intermediates (AIA)</label>
+    <label class="inline"><input type="checkbox" name="revocation" value="1"> Check revocation (OCSP/CRL)</label>
+    <label class="inline"><input type="checkbox" name="legacy" value="1"> Allow legacy TLS 1.0/1.1 (insecure)</label>
+  </fieldset>
+  <div class="span"><button type="submit">Check</button> <span id="busy" class="indicator">Checking…</span></div>
+</form>
+<div id="result" hx-disable aria-live="polite"></div>
+{% endblock %}

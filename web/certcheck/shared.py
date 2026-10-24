@@ -47,6 +47,17 @@ def load_catalogue(path: Path | None = None) -> Catalogue:
     return Catalogue(topics=tuple(doc["topics"]), entries=entries)
 
 
+def load_web_catalogue(path: Path | None = None) -> tuple[CatalogueEntry, ...]:
+    """Web-only findings (shared/web-findings.yaml, hand-maintained; same entry shape as findings.yaml)."""
+    doc: dict[str, Any] = yaml.safe_load((path or shared_dir() / "web-findings.yaml").read_text(encoding="utf-8"))
+    if doc.get("schema") != 1:
+        raise ValueError("unsupported web-findings.yaml schema")
+    entries = tuple(CatalogueEntry(**e) for e in doc["findings"])
+    if doc.get("count") != len(entries):
+        raise ValueError("web-findings.yaml count does not match its entries")
+    return entries
+
+
 def load_manifest(root: Path | None = None) -> dict[str, Any]:
     data: dict[str, Any] = json.loads(((root or shared_dir() / "fixtures" / "ca") / "cases.json").read_text("utf-8"))
     return data

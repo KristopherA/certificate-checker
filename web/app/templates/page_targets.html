@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Saved targets · Certificate Checker{% endblock %}
+{% block main %}
+<h1>Saved targets</h1>
+<p class="muted">Read from targets.yaml in the config directory. Edit that file to change the list.</p>
+{% if error %}<p class="sev-fail">targets.yaml is invalid: {{ error }}</p>{% endif %}
+{% if targets %}
+<table>
+  <thead><tr><th>Name</th><th>Host</th><th>Port</th><th>Profile</th><th>Options</th><th></th></tr></thead>
+  <tbody>
+  {% for x in targets %}
+  <tr>
+    <td>{{ x.name }}</td><td>{{ x.target.host }}</td><td>{{ x.target.port }}</td><td>{{ x.target.service.value }}</td>
+    <td>{% if x.options.aia %}AIA {% endif %}{% if x.options.revocation %}revocation {% endif %}{% if x.options.legacy %}<span class="badge-legacy">legacy</span>{% endif %}</td>
+    <td>
+      <form method="post" action="/ui/targets/run" hx-post="/ui/targets/run" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="name" value="{{ x.name }}">
+        <button type="submit">Check</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<span id="busy" class="indicator">Checking…</span>
+{% elif not error %}
+<p>No saved targets.</p>
+{% endif %}
+<div id="result" hx-disable aria-live="polite"></div>
+{% endblock %}
