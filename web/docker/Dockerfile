@@ -21,7 +21,14 @@ COPY web/certcheck ./certcheck
 RUN uv sync --frozen --no-dev --no-editable
 
 FROM ${PYTHON_IMAGE}
+# Optional OCI labels: pass with docker build --build-arg (see BUILD.md); empty or "dev" by default.
+ARG SOURCE_URL=""
+ARG VERSION="dev"
+ARG REVISION=""
 LABEL org.opencontainers.image.title="certcheck-web" \
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.description="Certificate Checker Web: on-demand certificate checks from a browser on the LAN" \
       org.opencontainers.image.licenses="MIT"
 # openssl: chain verification (openssl verify) and copy-ready guidance. eapoltest: the RADIUS/EAP-TLS probe.

@@ -20,3 +20,15 @@ Notes (review M6):
   come from the default gateway. Compose binds to `CERTCHECK_HOST_IP`, never 0.0.0.0 (see
   ../docker/DEPLOYMENT.md, "Client addresses").
 - `python -m app healthcheck` connects to `CERTCHECK_BIND` (loopback for 0.0.0.0 or ::).
+
+## Notes (review M7b, M8)
+
+- `security.peer_ip` unwraps `::ffff:a.b.c.d` before any comparison with the gateways; `default_gateways` reads
+  both `/proc/net/route` and `/proc/net/ipv6_route`.
+- `CERTCHECK_REFUSE_GATEWAY_PEERS=1` (off by default) refuses every request whose peer is a default gateway (403),
+  before the LAN check.
+- The OpenAPI version is the package version from `web/pyproject.toml` (1.0.0), the same value as
+  `web/CHANGELOG.md`.
+
+- M8f: there is no release workflow and no container registry. CI builds the image without pushing it, and
+  `tests/test_review_m8f.py` keeps any workflow from gaining registry access; see `docker/BUILD.md`.

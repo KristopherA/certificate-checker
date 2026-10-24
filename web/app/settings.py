@@ -63,6 +63,7 @@ class Settings:
     allowed_hosts: tuple[str, ...] = ()  # Host header values accepted; empty means any
     secure_cookies: bool = False  # Secure flag on cookies: on whenever the UI is served over TLS
     lan_only: bool = True  # refuse clients whose address is not on the LAN (security.lan_client)
+    refuse_gateway_peers: bool = False  # CERTCHECK_REFUSE_GATEWAY_PEERS: 403 for peers that are a default gateway
     login_required: bool = True  # False only with CERTCHECK_NO_LOGIN=1, which python -m app allows on loopback only
     password_hash: str | None = field(default=None, repr=False)
     session_idle_s: int = 30 * 60
@@ -82,6 +83,7 @@ class Settings:
             "anchors": Path(anchors) if anchors else None,
             "secure_cookies": tls_enabled(e) or _flag(e, "CERTCHECK_SECURE_COOKIES", False),
             "login_required": not _flag(e, "CERTCHECK_NO_LOGIN", False),
+            "refuse_gateway_peers": _flag(e, "CERTCHECK_REFUSE_GATEWAY_PEERS", False),
             "password_hash": password_hash(e),
         }
         for k, f, lo, hi in (("CERTCHECK_MAX_UPLOAD_BYTES", "max_upload_bytes", 1024, MAX_UPLOAD_BYTES),

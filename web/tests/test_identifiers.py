@@ -96,7 +96,9 @@ EMAIL = re.compile(rb"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)")
 
 
 # Allowed as the exact host only (no subdomains): registries that host anyone's images.
-EXACT_HOSTS = ("ghcr.io",)  # pinned uv build image in web/docker/Dockerfile
+# ghcr.io: the pinned uv build image pulled by web/docker/Dockerfile (nothing is pushed there). github.com: pinned
+# tool downloads in the workflows.
+EXACT_HOSTS = ("ghcr.io", "github.com")
 
 
 def allowed_host(h: str) -> bool:
@@ -168,6 +170,15 @@ def test_emails_are_examples() -> None:
 
 def test_exact_hosts_do_not_cover_subdomains() -> None:
     # Built at runtime so the scan does not see the fakes.
-    assert allowed_host("ghcr" + ".io")
-    for bad in ("evil.ghcr" + ".io", "x.y.ghcr" + ".io", "ghcr.io" + ".evil.com", "notghcr" + ".io"):
+    for host in ("ghcr" + ".io", "github" + ".com"):
+        assert allowed_host(host), host
+        for bad in ("evil." + host, "x.y." + host, host + ".evil.com", "not" + host):
+            assert not allowed_host(bad), bad
+    for bad in (
+        "token.actions.githubusercontent" + ".com",
+        "gist.github" + ".com",
+        "raw.githubusercontent" + ".com",
+        "actions.githubusercontent" + ".com",
+    ):
         assert not allowed_host(bad), bad
+    assert allowed_host("noreply.github" + ".com")  # the commit email domain stays allowed by its own entry

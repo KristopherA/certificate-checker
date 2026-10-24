@@ -1,7 +1,7 @@
 [project]
 name = "certcheck-web"
-version = "0.0.0"
-description = "Certificate Checker Web: Linux-native certificate checks with a web UI (work in progress, milestone M7)."
+version = "1.0.0"
+description = "Certificate Checker Web: Linux-native certificate checks with a web UI, released as a signed container image."
 requires-python = ">=3.12"
 dependencies = [
   "argon2-cffi>=23.1",

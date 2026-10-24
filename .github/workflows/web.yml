@@ -1,5 +1,5 @@
 # Linux CI for Certificate Checker Web (spec section 10): ruff, mypy, pytest, gitleaks, a multi-arch buildx build
-# and a Trivy scan. Nothing is pushed or published here: releases (GHCR on a web-v* tag, with approval) are separate.
+# and a Trivy scan. Nothing is pushed or published: there is no registry login and no image registry; images are built locally (web/docker/BUILD.md).
 name: web
 
 on:
@@ -101,12 +101,18 @@ jobs:
           [ "$(docker exec certcheck-ci id -u)" = 10001 ]
           curl -fsk https://127.0.0.1:8443/api/v1/health
           docker rm -f certcheck-ci
+      - name: Trivy 0.76.1 (checksum-pinned, no github.token)
+        env:
+          TRIVY_VERSION: "0.76.1"
+          TRIVY_SHA256: "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+        run: |
+          set -euo pipefail
+          f="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSLo "$RUNNER_TEMP/$f" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/$f"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/$f" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP" trivy
       - name: Trivy (vulnerabilities, secrets, misconfiguration)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: certcheck-web:ci
-          version: v0.76.1
-          scanners: vuln,secret,misconfig
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: "1"
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/trivy" image --scanners vuln,secret,misconfig --severity CRITICAL,HIGH \
+            --ignore-unfixed --exit-code 1 certcheck-web:ci

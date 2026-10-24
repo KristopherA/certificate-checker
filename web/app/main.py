@@ -20,6 +20,7 @@ import shutil
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -165,7 +166,7 @@ def create_app(settings: Settings | None = None, policy: probe.TargetPolicy | No
 
     app = FastAPI(
         title="Certificate Checker Web",
-        version="0.6.0",
+        version=package_version("certcheck-web"),
         openapi_url="/api/v1/openapi.json",
         docs_url=None,  # Swagger/ReDoc load scripts from a CDN and use inline script: not with this CSP
         redoc_url=None,
@@ -173,7 +174,7 @@ def create_app(settings: Settings | None = None, policy: probe.TargetPolicy | No
     )
     app.add_middleware(AuthGate, sessions=sessions, required=st.login_required)  # inner: runs after Hardening
     app.add_middleware(security.Hardening, max_body=st.max_upload_bytes, allowed_hosts=st.allowed_hosts,
-                       lan_only=st.lan_only)  # fmt: skip
+                       lan_only=st.lan_only, refuse_gateway_peers=st.refuse_gateway_peers)  # fmt: skip
     templates = Jinja2Templates(env=_environment())
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 

@@ -20,7 +20,10 @@
 * Gateway-peer warning (M7b): behind Docker's userland proxy (Docker Desktop, some IPv6 setups) every client
   arrives from the bridge gateway, so the LAN check passes for everyone and the per-address lockout lumps all
   clients together. GatewayPeerWatch logs one warning when the first WATCH_REQUESTS non-loopback requests all
-  came from the container's default gateway (see web/docker/DEPLOYMENT.md, "Client addresses").
+  came from the container's default gateway, IPv4 or IPv6 (::ffff:a.b.c.d peers are unwrapped first). Opt-in
+  CERTCHECK_REFUSE_GATEWAY_PEERS=1 refuses every request from a gateway instead (403); off by default because
+  a browser on the Docker host itself also arrives from the gateway (see web/docker/DEPLOYMENT.md,
+  "Client addresses").
 """
 
 from __future__ import annotations
@@ -83,13 +86,19 @@ log = logging.getLogger("certcheck.security")
 WATCH_REQUESTS = 20
 
 
-def default_gateways(route: Path = Path("/proc/net/route")) -> frozenset[str]:
-    """IPv4 default gateways from the Linux routing table (empty when unreadable, e.g. on macOS)."""
+def _hex_v6(h: str) -> str:
+    return str(ipaddress.IPv6Address(bytes.fromhex(h)))
+
+
+def default_gateways(
+    route: Path = Path("/proc/net/route"), route6: Path = Path("/proc/net/ipv6_route")
+) -> frozenset[str]:
+    """IPv4 and IPv6 default gateways from the Linux routing tables (empty when unreadable, e.g. on macOS)."""
     out: set[str] = set()
     try:
         lines = route.read_text().splitlines()[1:]
     except OSError:
-        return frozenset()
+        lines = []
     for line in lines:
         f = line.split()
         if len(f) >= 3 and f[1] == "00000000" and f[2] != "00000000":
@@ -97,37 +106,69 @@ def default_gateways(route: Path = Path("/proc/net/route")) -> frozenset[str]:
                 out.add(socket.inet_ntoa(struct.pack("<I", int(f[2], 16))))
             except (ValueError, struct.error):
                 continue
+    try:
+        lines6 = route6.read_text().splitlines()
+    except OSError:
+        lines6 = []
+    zero = "0" * 32
+    for line in lines6:
+        # dest dest_len src src_len next_hop metric refcnt use flags iface
+        f = line.split()
+        if len(f) >= 5 and f[0] == zero and f[1] == "00" and f[4] != zero:
+            try:
+                out.add(_hex_v6(f[4]))
+            except ValueError:
+                continue
     return frozenset(out)
 
 
-class GatewayPeerWatch:
-    """Warns once if every client so far is the default gateway (a proxy hides the real peers)."""
+def peer_ip(client: tuple[str, int] | list[Any] | None) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """The peer address with any zone id dropped and ::ffff:a.b.c.d unwrapped to a.b.c.d (None if not an IP)."""
+    if not client:
+        return None
+    try:
+        ip = ipaddress.ip_address(str(client[0]).split("%", 1)[0])
+    except ValueError:
+        return None
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        return ip.ipv4_mapped
+    return ip
 
-    def __init__(self, gateways: frozenset[str] | None = None, threshold: int = WATCH_REQUESTS) -> None:
-        self.gateways = default_gateways() if gateways is None else gateways
-        self.threshold, self.seen, self.done = threshold, 0, not self.gateways
+
+class GatewayPeerWatch:
+    """Warns once if the first N non-loopback requests all came from a default gateway (a proxy hides the real
+    peers); with refuse=True (CERTCHECK_REFUSE_GATEWAY_PEERS) every request from a gateway is refused."""
+
+    def __init__(
+        self, gateways: frozenset[str] | None = None, threshold: int = WATCH_REQUESTS, refuse: bool = False
+    ) -> None:
+        raw = default_gateways() if gateways is None else gateways
+        self.gateways = frozenset(g for g in (peer_ip((x, 0)) for x in raw) if g is not None)
+        self.threshold, self.seen, self.done, self.refuse = threshold, 0, not self.gateways, refuse
+
+    def is_gateway(self, client: tuple[str, int] | list[Any] | None) -> bool:
+        ip = peer_ip(client)
+        return ip is not None and ip in self.gateways
 
     def observe(self, client: tuple[str, int] | list[Any] | None) -> None:
-        if self.done or not client:
+        if self.done:
             return
-        addr = str(client[0]).split("%", 1)[0]
-        try:
-            if ipaddress.ip_address(addr).is_loopback:
-                return  # the container's own healthcheck
-        except ValueError:
-            return
-        if addr not in self.gateways:
+        ip = peer_ip(client)
+        if ip is None or ip.is_loopback:
+            return  # no address, or the container's own healthcheck
+        if ip not in self.gateways:
             self.done = True  # real peers are visible
             return
         self.seen += 1
         if self.seen >= self.threshold:
             self.done = True
             log.warning(
-                "the last %d clients all came from the gateway %s: a proxy (Docker userland proxy or NAT) hides "
-                "real client addresses, so the LAN-only check passes for everyone and login lockout counts all "
-                "clients as one; see DEPLOYMENT.md, Client addresses",
+                "the first %d non-loopback requests all came from the gateway %s: a proxy (Docker userland proxy "
+                "or NAT) may be hiding real client addresses, so the LAN-only check would pass for everyone and "
+                "login lockout would count all clients as one; a browser on the Docker host itself also does "
+                "this harmlessly; see DEPLOYMENT.md, Client addresses",
                 self.seen,
-                addr,
+                ip,
             )
 
 
@@ -135,16 +176,26 @@ class Hardening:
     """Pure ASGI middleware (no BaseHTTPMiddleware buffering)."""
 
     def __init__(
-        self, app: ASGIApp, *, max_body: int, allowed_hosts: tuple[str, ...] = (), lan_only: bool = True
+        self,
+        app: ASGIApp,
+        *,
+        max_body: int,
+        allowed_hosts: tuple[str, ...] = (),
+        lan_only: bool = True,
+        refuse_gateway_peers: bool = False,
+        watch: GatewayPeerWatch | None = None,
     ) -> None:
         self.inner, self.max_body, self.allowed_hosts, self.lan_only = app, max_body, allowed_hosts, lan_only
-        self.watch = GatewayPeerWatch()
+        self.watch = GatewayPeerWatch(refuse=refuse_gateway_peers) if watch is None else watch
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.inner(scope, receive, send)
             return
         self.watch.observe(scope.get("client"))
+        if self.watch.refuse and self.watch.is_gateway(scope.get("client")):
+            await _plain(send, 403, "Requests through the Docker gateway are refused (CERTCHECK_REFUSE_GATEWAY_PEERS).")
+            return
         if self.lan_only and not lan_client(scope.get("client")):
             await _plain(send, 403, "This app only answers clients on the local network.")
             return

@@ -53,8 +53,16 @@ behaviours change that address or the exposure:
   Linux for some IPv6 and hairpin setups) connections reach the container from the bridge gateway (usually
   the first address of the Docker bridge subnet), instead of the real client. Then the LAN-only check passes for everyone who can reach the port,
   including clients off the LAN if the host is exposed, and the lockout counts all clients as one address, so one
-  person's failed logins lock everyone out. The app logs a warning ("clients all came from the gateway") once the
-  first 20 non-loopback requests all arrive from the container's default gateway.
+  person's failed logins lock everyone out. The app logs a warning ("the first 20 non-loopback requests all came
+  from the gateway") once the first 20 non-loopback requests all arrive from one of the container's default
+  gateways, IPv4 or IPv6 (an IPv4-mapped peer such as `::ffff:10.0.0.30` counts as `10.0.0.30`).
+  **A browser on the Docker host itself also triggers it, harmlessly:** the host reaches the container from the
+  bridge gateway. If only you, on the host, have used the app so far, the warning says nothing about other
+  clients; check again after a LAN client has logged in.
+  To turn the warning into a hard rule, set `CERTCHECK_REFUSE_GATEWAY_PEERS=1`: every request from a gateway
+  address then gets 403 (off by default). That also locks out a browser on the Docker host, and with Docker
+  Desktop or the userland proxy it refuses everyone, which is the point: it stops the app from running where it
+  cannot see real client addresses.
 - **Published ports bypass the host firewall.** Docker writes its own iptables/nftables rules, so a port published
   on 0.0.0.0 is reachable even when ufw or firewalld says otherwise.
 
@@ -62,6 +70,11 @@ So compose publishes on one host address only, `CERTCHECK_HOST_IP` (for example 
 is no 0.0.0.0 default. To keep real client addresses, use rootful Docker on Linux with the default iptables NAT
 (no userland proxy for IPv4), or `network_mode: host` with `CERTCHECK_BIND` set to the host's LAN address. Filter
 the port on the Proxmox or network firewall as well, not only with ufw/firewalld on the Docker host.
+
+## Building the image
+
+There are no published images: build locally with `docker compose build` (above) or `docker build`; see
+[BUILD.md](BUILD.md).
 
 ## The /config volume (read-only)
 
