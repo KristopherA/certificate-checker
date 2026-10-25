@@ -5,18 +5,18 @@
   ],
   "findings": [
     {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
       "id": "dsm-default",
       "kind": "dsm-cert",
       "severity": "warning",
       "title": "Synology DSM factory certificate",
       "topic": "appliance"
-    },
-    {
-      "id": "trust",
-      "kind": "",
-      "severity": "warning",
-      "title": "Not trusted by macOS (as presented by server)",
-      "topic": "trust"
     },
     {
       "id": "appl-fp",

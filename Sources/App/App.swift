@@ -271,7 +271,7 @@ struct ContentView: View {
                 Spacer()
                 Label("On demand only", systemImage: "hand.tap").font(.caption)
                 Text("Nothing runs in the background. Private keys are read in memory only and never logged, cached, copied or uploaded. Fix commands are copy-only.").font(.caption).foregroundStyle(.secondary)
-                Text("macOS 14+ · v0.10.0\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
+                Text("macOS 14+ · v0.10.1\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
                 Text("Config: \(AppConfig.source == "built-in defaults" ? "built-in defaults" : (AppConfig.source as NSString).abbreviatingWithTildeInPath)\(AppConfig.loadError == nil ? "" : " (error, defaults used)")").font(.caption2).foregroundStyle(.secondary).lineLimit(2).help(AppConfig.loadError ?? AppConfig.source).textSelection(.enabled)
             }.padding(24).frame(width: 230).frame(maxHeight: .infinity).background(accent.opacity(0.055))
             Divider()

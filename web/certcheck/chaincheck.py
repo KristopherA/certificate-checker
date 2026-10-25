@@ -1,9 +1,8 @@
 """Protocol-neutral chain helpers for the RADIUS, IPsec and mTLS checks (ChainCheck.swift).
 
-verify() is stricter than the Mac. ChainCheck.verify passes the top certificate to SecTrust as its own anchor,
-so a chain whose top certificate's issuer was never supplied "verifies" (a false PASS: Radius.swift:92-93 and
-IPsec.swift srvN-chain). Here the top must be self-issued with a valid self-signature, or be (or be signed by)
-a supplied anchor. See shared/known-differences.yaml (offline_differences).
+verify() matches ChainCheck.verify (Mac 0.10.1): the top must be self-issued with a valid self-signature, or be
+(or be signed by) a supplied anchor, and no link may be signed with MD5 or SHA-1. Callers add a top as an anchor
+only when it is one of the user's own certificates (user_supplied: byte-equal or same SPKI).
 """
 
 from __future__ import annotations
@@ -19,6 +18,11 @@ APPLE_RULE_START = dt.datetime(2019, 7, 1, tzinfo=dt.UTC)
 
 is_self_signed = _is_self_signed
 chain = build_chain
+
+
+def user_supplied(top: Cert, user: Sequence[Cert]) -> bool:
+    """ChainCheck.isUserSupplied: `top` is byte-equal to, or has the same SPKI as, one of the user's certificates."""
+    return any(u.der == top.der or u.key.material == top.key.material for u in user)
 
 
 def cert_sign_allowed(c: Cert) -> bool:
@@ -39,6 +43,14 @@ def verify(ch: Sequence[Cert], now: dt.datetime, anchors: Sequence[Cert] = ()) -
                 f"({analysis.fmt(c.not_before)} to {analysis.fmt(c.not_after)}).",
             )
     for child, parent in zip(ch, ch[1:], strict=False):
+        if (
+            child.signature_is_weak
+        ):  # never proof of issuance (ChainCheck.weakLinkMessage); was misreported as a bad signature
+            return (
+                False,
+                f"The signature on {child.display_name} uses {child.signature_algorithm}; MD5 and SHA-1 signatures "
+                f"are not accepted as proof that {parent.display_name} issued it.",
+            )
         if parent.is_ca is not True:
             return False, f"{parent.display_name} is not a CA certificate."
         if not cert_sign_allowed(parent):

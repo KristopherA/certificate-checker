@@ -13,6 +13,7 @@ DERIVED="${DERIVED:-$HOME/Library/Caches/CertificateChecker/DerivedData}"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-pbs-selfsigned.pem" ] || "$ROOT/Tests/make-appliance-fixtures.sh"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-beats-client.pem" ] || "$ROOT/Tests/make-stack-fixtures.sh"
 [ -f "$ROOT/Tests/Fixtures/SYNTHETIC-vendor-ca.pem" ] || "$ROOT/Tests/make-vendor-fixtures.sh"
+[ -f "$ROOT/Tests/Fixtures/SYNTHETIC-genuine-root.pem" ] || "$ROOT/Tests/make-forged-fixtures.sh"
 (cd "$ROOT" && xcodegen generate --quiet)
 FIXTURES="$(dirname "$DERIVED")/fixtures"
 rm -rf "$FIXTURES"; mkdir -p "$FIXTURES"; cp "$ROOT"/Tests/Fixtures/* "$ROOT/Tests/tls_server.py" "$ROOT/Tests/http_capture.py" "$FIXTURES/"
@@ -28,7 +29,13 @@ if CC_IDENTIFIER_PATTERNS="$TMPP/missing.txt" "$ROOT/check-identifiers.sh" >/dev
 if CC_IDENTIFIER_PATTERNS="$TMPP/comments.txt" "$ROOT/check-identifiers.sh" >/dev/null 2>&1; then echo "  comments-only patterns file did not fail"; exit 1; fi
 mkdir -p "$TMPP/tree"; printf 'zz\0 /Us''ers/someone/x\n' > "$TMPP/tree/blob.bin"; printf 'zzorgword\n' > "$TMPP/p.txt"; printf 'a zzorgword b\0' > "$TMPP/tree/b2.bin"
 if CC_IDENTIFIER_PATTERNS="$TMPP/p.txt" "$ROOT/check-identifiers.sh" "$TMPP/tree" >/dev/null 2>&1; then echo "  binary file hits not detected"; exit 1; fi
-rm -rf "$TMPP"; echo "  ok  missing/comment-only patterns fail; binary files are scanned"
+mkdir -p "$TMPP/t2"; printf 'v 1.2.10.20''.30.40\n' > "$TMPP/t2/a.txt"; printf '(\n' > "$TMPP/bad.txt"
+if CC_IDENTIFIER_PATTERNS=none CC_IDENTIFIER_LOCAL=none "$ROOT/check-identifiers.sh" "$TMPP/t2" >/dev/null 2>&1; then echo "  address after a digits-and-dots run not detected"; exit 1; fi
+printf 'ok\n' > "$TMPP/t2/a.txt"
+if CC_IDENTIFIER_PATTERNS="$TMPP/bad.txt" CC_IDENTIFIER_LOCAL=none "$ROOT/check-identifiers.sh" "$TMPP/t2" >/dev/null 2>&1; then echo "  grep error (exit 2) did not fail"; exit 1; fi
+if CC_IDENTIFIER_PATTERNS=none CC_IDENTIFIER_LOCAL="$TMPP/missing.local" "$ROOT/check-identifiers.sh" "$TMPP/t2" >/dev/null 2>&1; then echo "  missing explicit local file did not fail"; exit 1; fi
+CC_IDENTIFIER_PATTERNS=none CC_IDENTIFIER_LOCAL=none "$ROOT/check-identifiers.sh" "$TMPP/t2" >/dev/null 2>&1 || { echo "  clean tree failed"; exit 1; }
+rm -rf "$TMPP"; echo "  ok  missing/comment-only patterns fail; binary files are scanned; grep errors, chained addresses and a missing local file fail"
 TEST_RUNNER_CC_FIXTURES="$FIXTURES" TEST_RUNNER_CERTCHECK_CONFIG=none xcodebuild -project "$ROOT/CertificateChecker.xcodeproj" -scheme CertificateChecker -derivedDataPath "$DERIVED" \
   -destination 'platform=macOS,arch=arm64' CODE_SIGN_IDENTITY=- test "$@"
 

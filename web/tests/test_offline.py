@@ -243,9 +243,10 @@ def test_ipsec_pfsense_27() -> None:
     assert not any("PRIVATE KEY" in (x.title + x.detail) for x in r.findings)
 
 
-def test_ipsec_unanchored_top_fails() -> None:
+def test_ipsec_config_supplied_top_anchors() -> None:
+    # Since 0.10.1 build 19 a top that IS one of the config's own CAs anchors (as the Mac); see test_build19.
     f = ipsec.inspect_data(items("ipsec-rollleaf.crt", "ipsec-roll.crt"), None, now=NOW).findings
-    assert sev(f, "srv0-chain") == Severity.FAIL
+    assert sev(f, "srv0-chain") == Severity.PASS
 
 
 def test_ipsec_rejects_doctype() -> None:

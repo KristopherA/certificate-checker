@@ -38,10 +38,11 @@ public enum Appliance {
     public static func adjust(_ findings: [Finding], chain: [Certificate], target: Target, now: Date = Clock.now()) -> [Finding] {
         guard let leaf = chain.first, target.service.isAppliance else { return findings }
         var out = findings
-        func downgradeTrust(_ note: String, to sev: Severity = .warning) {
-            // Only when the trust failure is explained by the default CA/self-signed setup: inside validity, signatures verify.
+        func downgradeTrust(_ note: String, to sev: Severity = .warning, pinned: Bool = false) {
+            // Only when the trust failure is explained by the default CA/self-signed setup: inside validity, signatures
+            // verify, and the top is a verified self-signed root unless the leaf matched the user's fingerprint pin.
             guard let i = out.firstIndex(where: { $0.id == "trust" }), out[i].severity == .fail,
-                  leaf.notBefore <= now, now <= leaf.notAfter, ChainCheck.verify(chain, now: now).ok else { return }
+                  leaf.notBefore <= now, now <= leaf.notAfter, ChainCheck.verify(chain, now: now, trustedTop: pinned).ok else { return }
             out[i].severity = sev; out[i].detail += " " + note
         }
         /// Pin comparison shared by PBS and PVE. `leaf.sha256` is upper-case colon-hex (locked by ApplianceTests), the same
@@ -55,7 +56,7 @@ public enum Appliance {
                 // Leaf only (not self-issued): there is no chain to verify, so trust rests on the pin alone. Say "pinned".
                 let leafOnly = chain.count == 1 && !leaf.isSelfIssued
                 out.append(Finding(id, .pass, .appliance, "Fingerprint pin matches the served certificate", pin + (leafOnly ? " · Pinned: the server sent only its own certificate, so no issuing chain was checked." : ""), kind: id))
-                if explainedTrust { downgradeTrust(leafOnly ? "Pinned: matches the fingerprint pin; the server sent only its own certificate, so the issuing chain was not checked." : "Trusted by the matching fingerprint pin.", to: .info) }
+                if explainedTrust { downgradeTrust(leafOnly ? "Pinned: matches the fingerprint pin; the server sent only its own certificate, so the issuing chain was not checked." : "Trusted by the matching fingerprint pin.", to: .info, pinned: true) }
             } else {
                 out.append(Finding(id, .fail, .appliance, "Fingerprint pin does NOT match the served certificate", "Pinned \(pin), served \(leaf.sha256). The certificate was regenerated or replaced, or something else answers on \(target.endpoint). Confirm on the host before updating the pin.", kind: id))
             }

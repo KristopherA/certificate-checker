@@ -2,6 +2,13 @@
   "case": "ipsec-bad",
   "findings": [
     {
+      "id": "srv0-chain",
+      "kind": "chain",
+      "severity": "fail",
+      "title": "Server certificate chain does not verify",
+      "topic": "ipsec"
+    },
+    {
       "id": "srv0-eku",
       "kind": "reissue",
       "severity": "fail",
@@ -83,13 +90,6 @@
       "kind": "validity",
       "severity": "pass",
       "title": "CA Test IKEv2 CA valid for 3626 more days",
-      "topic": "ipsec"
-    },
-    {
-      "id": "srv0-chain",
-      "kind": "chain",
-      "severity": "pass",
-      "title": "Server certificate chain verifies to Test IKEv2 CA",
       "topic": "ipsec"
     },
     {

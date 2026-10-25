@@ -93,7 +93,7 @@ public enum Stack {
         guard let top = path.last, caHashes.contains(top.sha256), path.count > 1 || caHashes.contains(leaf.sha256) else {
             return (false, path, "Issuer \(path.last?.issuer.text ?? leaf.issuer.text) is not in the supplied CA file (\(ca.map(\.displayName).joined(separator: ", "))).")
         }
-        let r = ChainCheck.verify(path, now: now)
+        let r = ChainCheck.verify(path, now: now, trustedTop: true)   // the top is from the user's CA file
         return (r.ok, path, r.ok ? "" : r.message)
     }
 }

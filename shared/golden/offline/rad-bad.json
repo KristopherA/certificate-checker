@@ -2,6 +2,13 @@
   "case": "rad-bad",
   "findings": [
     {
+      "id": "rad-chain",
+      "kind": "chain",
+      "severity": "fail",
+      "title": "Chain does not verify",
+      "topic": "radius"
+    },
+    {
       "id": "rad-eku",
       "kind": "reissue",
       "severity": "fail",
@@ -34,13 +41,6 @@
       "kind": "reissue",
       "severity": "warning",
       "title": "RADIUS server certificate lifetime is 900 days (over 825)",
-      "topic": "radius"
-    },
-    {
-      "id": "rad-chain",
-      "kind": "chain",
-      "severity": "pass",
-      "title": "Chain verifies to Test IKEv2 CA",
       "topic": "radius"
     },
     {

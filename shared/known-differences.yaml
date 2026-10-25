@@ -77,50 +77,11 @@ adjust_differences:
     reason: >-
       The leaf's EKU is clientAuth only, so the eku check fails. The Mac's Remote adjuster still downgrades the
       self-signed trust failure; web never downgrades on an EKU failure.
-  - case: forged-synology
-    mac: [["trust", "warning", "trust"]]
-    web: [["trust", "fail", "trust"]]
-    reason: >-
-      Forged issuer (review B1): a leaf for the host whose issuer NAME is Synology's factory CA, signed by an
-      unrelated key and sent alone. The Mac's ChainCheck.verify anchors on the last presented certificate, so a
-      lone leaf "verifies" against itself and the DSM adjuster downgrades the trust failure. Web requires the top
-      certificate to be self-signed or to chain to a supplied anchor (rule 2), so the failure stands. This is a
-      Mac bug, to be fixed separately in Swift; this entry must then be deleted.
-  - case: forged-pve
-    mac: [["trust", "warning", "trust"]]
-    web: [["trust", "fail", "trust"]]
-    reason: >-
-      Forged issuer (review B1): as forged-synology, with the Proxmox VE cluster-CA issuer name on a leaf for
-      the host and no fingerprint pin. The Mac's PVE adjuster downgrades; web keeps the failure (rule 2).
 
 # Differences that the fixture cases do not exercise. Documented, not tested.
 # Offline checks and RADIUS (shared/fixtures/offline/cases.json, goldens in shared/golden/offline;
 # web/tests/test_offline_parity.py). Same rule: every listed difference must still occur.
 offline_differences:
-  - case: rad-top-not-sent
-    mac: [["rad-chain", "pass", "radius"]]
-    web: [["rad-chain", "fail", "radius"]]
-    reason: >-
-      KNOWN MAC BUG (Radius.swift:92-93, via ChainCheck.swift:28-40). The server sends leaf + intermediate
-      but not the root. ChainCheck passes the top certificate to SecTrust as its own anchor and never checks
-      its self-signature, so the Mac reports "Chain verifies to Test Rollover CA" (a false PASS). Web
-      (chaincheck.verify) requires the top to be self-issued with a valid self-signature, or to be or be
-      signed by a supplied anchor, and fails otherwise. To be fixed on the Mac in 0.10.1.
-  - case: rad-bad
-    mac: [["rad-chain", "pass", "radius"]]
-    web: [["rad-chain", "fail", "radius"]]
-    reason: >-
-      Same Mac bug. ipsec-bad.crt names Test IKEv2 CA as issuer but is not signed by it; the Mac's chain
-      builder drops the CA and anchors the lone leaf as itself, so it "verifies". Web reports the failed
-      signature link.
-  - case: ipsec-top-not-sent
-    mac: [["srv0-chain", "pass", "ipsec"]]
-    web: [["srv0-chain", "fail", "ipsec"]]
-    reason: Same Mac bug, in IPsec.swift srvN-chain (shared ChainCheck.verify).
-  - case: ipsec-bad
-    mac: [["srv0-chain", "pass", "ipsec"]]
-    web: [["srv0-chain", "fail", "ipsec"]]
-    reason: Same Mac bug as rad-bad, in IPsec.swift srvN-chain.
   - case: munki-plist-only
     mac:
       - ["mtls-none", "fail", "vendor"]
@@ -267,12 +228,9 @@ general:
       PEM per OpenSSL verify-callback call (eapol_test_cert_cb from tls_openssl.c tls_verify_cb), i.e. the
       path OpenSSL built, top (deepest) first down to the leaf; not the order the server sent, extra
       certificates the server sent that are not on that path are absent, and a certificate can repeat
-      (depth 0 is re-emitted when a CA-level check fails, tls_openssl.c ~2937-2953). KNOWN MAC BUG:
-      Radius.swift:211 assumes leaf-first, so against a real FreeRADIUS the Mac would report rad-order plus
-      rad-isca / rad-notca / rad-unlinked / rad-name failures for a correct server (inferred: web produced
-      exactly this with the Mac's assumption in the M3 live run). Web de-duplicates, orders the chain
-      leaf-first by issuer links and does not report rad-order for the probe, because the wire order is not
-      visible in that file. XML (pfSense config.xml) uploads with any DTD are refused at the expat level
+      (depth 0 is re-emitted when a CA-level check fails, tls_openssl.c ~2937-2953). Both the Mac
+      (0.10.1, RadiusProbe.normalize) and web de-duplicate, order the chain leaf-first by issuer links and do
+      not report rad-order for the probe, because the wire order is not visible in that file. XML (pfSense config.xml) uploads with any DTD are refused at the expat level
       (also UTF-16), nesting deeper than 1000 levels is refused, and any RecursionError fails closed. Munki
       plists with any ENTITY, or any DOCTYPE other than Apple's standard plist DOCTYPE, are refused, in any encoding (UTF-8 BOM, UTF-16/32 with or without a BOM, checked on the decoded text and
       again at the expat level) (the

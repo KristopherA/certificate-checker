@@ -169,7 +169,12 @@ public enum IPsecCheck {
     static func sort(_ f: [Finding]) -> [Finding] { f.sorted { $0.severity == $1.severity ? $0.id < $1.id : $0.severity > $1.severity } }
 
     static func chain(for leaf: Certificate, pool: [IPsecEntry]) -> [Certificate] { ChainCheck.chain(for: leaf, pool: pool.map(\.cert)) }
-    static func verify(_ chain: [Certificate], now: Date) -> (ok: Bool, message: String) { ChainCheck.verify(chain, now: now) }
+    /// The top is trusted only when it is one of the config's own CAs (byte-equal or same SPKI); anything else, e.g. a
+    /// server-side certificate that merely ends the chain, must be a verified self-signed root (strict default).
+    static func verify(_ chain: [Certificate], cas: [IPsecEntry], now: Date) -> (ok: Bool, message: String) {
+        guard let top = chain.last else { return (false, "No certificate.") }
+        return ChainCheck.verify(chain, now: now, trustedTop: ChainCheck.isUserSupplied(top, in: cas.map(\.cert)))
+    }
 
     static func validity(_ c: Certificate, _ p: String, _ who: String, now: Date) -> Finding {
         let days = Int(c.notAfter.timeIntervalSince(now) / 86_400)
@@ -265,7 +270,7 @@ public enum IPsecCheck {
                     out.append(f(p + "chain-pathlen-\(k)", .fail, "chain", "\(label)\(issuer.displayName) allows \(pl) intermediate CA\(pl == 1 ? "" : "s") below it, but the chain has \(below)", "basicConstraints pathLenConstraint is violated; clients reject the chain. Self-issued intermediates are not counted. Issue the server certificate from a CA within the limit."))
                 }
             }
-            let v = verify(ch, now: now)
+            let v = verify(ch, cas: cas, now: now)
             out.append(v.ok ? f(p + "chain", .pass, "chain", "\(who) chain verifies to \(ch.last!.displayName)", ch.map(\.displayName).joined(separator: " → "))
                             : f(p + "chain", .fail, "chain", "\(who) chain does not verify", v.message))
             if let top = ch.last, !ChainCheck.isSelfSigned(top) { out.append(f(p + "chain-top", .warning, "chain", "\(label)Chain stops at \(top.displayName)", "Its issuer (\(top.issuer.text)) was not supplied; clients need the root CA installed.")) }

@@ -304,11 +304,25 @@ New **Services & devices** section and CLI commands (`munki`, `munki-repo`, `fms
 
 **Untested:** vendor default-certificate detection and behaviour were built from documentation and SYNTHETIC fixtures only (loopback); no probes were made against real Munki, FileMaker, Retrospect, HP or Barracuda products.
 
+## 0.10.1: forged-anchor fix and eapol_test chain order
+
+Build 19 (security fix): an MD5 or SHA-1 signature on a chain link is never accepted as proof of
+issuance (it now fails with a message naming the algorithm; before, SecTrust passed it and the web
+misreported it as a bad signature). IPsec srvN-chain anchors the top certificate only when it is
+byte-equal to, or has the same public key as, a CA from the supplied config or CA file; otherwise the
+strict default applies. Fixes rad-bad and ipsec-bad; ipsec-top-not-sent now passes on both sides.
+
+Build 18 (security fix):
+- A chain's top certificate counts as a root only if its self-signature verifies with its own key. macOS trust evaluation accepts an anchor as given, so before this fix a lone forged leaf, or a leaf with a fake self-issued "CA" on top, could anchor itself. This affected three checks: the DSM factory-certificate trust downgrade, the PVE default downgrade without a fingerprint pin, and the RADIUS "Chain verifies" result. A matching fingerprint pin, or a CA file you supply (Stack, IPsec), still serves as the anchor.
+- RADIUS: a chain whose top is not a verified root is never a pass. A forged root fails. A chain that stops at an intermediate, or a lone leaf, gives a warning.
+- `radius-probe`: `eapol_test -o` writes the path it built top-first and may repeat the leaf. The certificates are now deduplicated and ordered leaf-first. The "out of order" warning is removed because the file does not show the order the server sent.
+- check-identifiers.sh: a grep error (exit 2) fails the check instead of being ignored. A missing local site-patterns file gives a warning; set `CC_IDENTIFIER_LOCAL=none` to skip it on purpose. An address right after a digits-and-dots run is now caught.
+
 ## 0.10.0: connect IP, resolver source and split-DNS warning
 
 Build 17: a bare "." host, SNI or expected name is rejected; check-identifiers.sh is range-neutral (RFC 1918 and 100.64/10 addresses fail unless allowlisted) and reads optional site patterns from a local file outside the tree.
 
-Build 16: SNI and the expected name drop one trailing dot (RFC 6066); check-identifiers.sh fails on private and CGNAT addresses outside a short allowlist; build.sh signs in a `mktemp -d` stage folder.
+Build 16: SNI and the expected name ignore one trailing dot (RFC 6066); check-identifiers.sh fails on private and CGNAT addresses that are not on a short allowlist; build.sh signs in a `mktemp -d` stage folder.
 
 Build 15 (review fixes): the WinRM HTTP check connects to the connect IP but sends the hostname as `Host`, and logs the shared "Connected to" line; conflicting `--resolve` values exit 2; one trailing dot is ignored when matching; IPv6 scope IDs are refused; an unreadable peer address is shown as "requested", not as the peer; benchmarking (198.18.0.0/15), 192.0.0.0/24, 240.0.0.0/4 and broadcast, NAT64 (64:ff9b::/96) and site-local (fec0::/10) addresses no longer count as public; `radius-probe` refuses `--resolve`; offline trust results also say when a certificate is outside its validity period on the checked date; build.sh strict-verifies the signed app and CLI before copying them into the synced folder.
 

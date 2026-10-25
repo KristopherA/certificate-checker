@@ -89,9 +89,17 @@ public enum RadiusCheck {
             }
             for (k, c) in chain.enumerated() where k > 0 && c.isCA != true { out.append(f("rad-notca-\(k)", .fail, "chain", "Issuer \(c.displayName) is not a CA", "Its basicConstraints is not CA:TRUE.")) }
             for (k, c) in chain.enumerated() where k > 0 && now > c.notAfter { out.append(f("rad-caexp-\(k)", .fail, "chain", "Issuer \(c.displayName) expired \(Analysis.fmt(c.notAfter))")) }
-            let v = ChainCheck.verify(chain, now: now)
-            out.append(v.ok ? f("rad-chain", .pass, "chain", "Chain verifies to \(chain.last!.displayName)", chain.map(\.displayName).joined(separator: " → "))
-                            : f("rad-chain", .fail, "chain", "Chain does not verify", v.message))
+            // A pass needs a verified self-signed root on top. Without one, check the links only and say what is missing.
+            let top = chain.last!, path = chain.map(\.displayName).joined(separator: " → ")
+            if ChainCheck.selfSignatureVerifies(top) || !top.isSelfIssued {
+                let v = ChainCheck.verify(chain, now: now, trustedTop: !top.isSelfIssued)
+                out.append(!v.ok ? f("rad-chain", .fail, "chain", "Chain does not verify", v.message)
+                    : top.isSelfIssued ? f("rad-chain", .pass, "chain", "Chain verifies to \(top.displayName)", chain.map(\.displayName).joined(separator: " → "))
+                    : chain.count == 1 ? f("rad-chain", .warning, "chain", "Only \(top.displayName) was supplied, so its issuer could not be checked", "Clients must already trust \(top.issuer.text); nothing here proves it issued this certificate.")
+                    : f("rad-chain", .warning, "chain", "Signatures verify up to \(top.displayName), but no root was supplied", "\(path). Nothing here proves who issued \(top.displayName); clients must already trust its issuer."))
+            } else {
+                out.append(f("rad-chain", .fail, "chain", "Chain does not verify", "\(top.displayName) claims to be a root, but its signature does not verify with its own key."))
+            }
             if let top = chain.last, !ChainCheck.isSelfSigned(top) { out.append(f("rad-top", .info, "chain", "Chain stops at \(top.displayName)", "Clients must already trust \(top.issuer.text) (normally the root, deployed by GPO/MDM).")) }
         }
         for (k, key) in keys.enumerated() {
@@ -133,6 +141,13 @@ public enum RadiusProbe {
         }
 
         """
+    }
+
+    /// eapol_test -o writes the path it built top-first (root or highest CA first) and may repeat the leaf. Dedupe by
+    /// SHA-256, then order leaf-first by issuer/subject links. Order is not a server finding: the file is not the wire order.
+    public static func normalize(_ certs: [Certificate]) -> [Certificate] {
+        var seen = Set<String>()
+        return Analysis.orderedChain(certs.filter { seen.insert($0.sha256).inserted })
     }
 
     public static func arguments(config: String, address: String, port: Int, secret: String, certOut: String) -> [String] {
@@ -208,14 +223,13 @@ public enum RadiusProbe {
             if timedOut { r.findings.append(f("rad-probe-timeout", .fail, "probe", "eapol_test did not finish in \(timeout + grace) s and was \(killed ? "killed (SIGKILL after ignoring SIGTERM)" : "stopped")")) }
             if let data = fm.contents(atPath: certs.path), !data.isEmpty {
                 var rep = FileReport(); try? FileCheck.load(name: "server-chain.pem", data: data, password: nil, into: &rep)
-                r.chain = rep.certificates   // eapol_test writes the chain in the order the server sent it (leaf first)
+                r.chain = RadiusProbe.normalize(rep.certificates)
             }
             if r.chain.isEmpty {
                 r.findings.append(f("rad-probe-nocert", .fail, "probe", "No server certificate was received",
                     "Check that this Mac's IP is a RADIUS client (NAS) on the server, the shared secret, and that UDP \(port) is allowed. A wrong secret usually looks like no response."))
             } else {
-                r.findings.append(f("rad-probe-ok", .info, "probe", "Received \(r.chain.count) certificate\(r.chain.count == 1 ? "" : "s") from the server", "The authentication itself is expected to fail: the probe uses dummy credentials."))
-                if Analysis.orderedChain(r.chain).map(\.sha256) != r.chain.map(\.sha256) { r.findings.append(f("rad-order", .warning, "chain", "Server sends its chain out of order", "Send the server certificate first, then each intermediate.")) }
+                r.findings.append(f("rad-probe-ok", .info, "probe", "Captured \(r.chain.count) certificate\(r.chain.count == 1 ? "" : "s") from the server's path", "eapol_test records the path it built, not the exact list the server sent, so extra or out-of-order certificates the server sends are not reported. The authentication itself is expected to fail: the probe uses dummy credentials."))
                 r.findings += RadiusCheck.evaluate(chain: r.chain, expectedName: expectedName, now: now)
             }
         } catch { r.findings.append(f("rad-probe-run", .fail, "probe", "eapol_test could not be run", error.localizedDescription)) }

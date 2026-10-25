@@ -9,3 +9,6 @@ identifier-patterns.local.txt
 
 # Generated Xcode project (created by xcodegen from project.yml)
 CertificateChecker.xcodeproj/
+
+# Python bytecode
+__pycache__/

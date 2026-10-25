@@ -5,18 +5,18 @@
   ],
   "findings": [
     {
+      "id": "trust",
+      "kind": "",
+      "severity": "fail",
+      "title": "Not trusted by macOS (as presented by server)",
+      "topic": "trust"
+    },
+    {
       "id": "pve-default",
       "kind": "pve-cert",
       "severity": "warning",
       "title": "Proxmox VE default node certificate (cluster CA)",
       "topic": "appliance"
-    },
-    {
-      "id": "trust",
-      "kind": "",
-      "severity": "warning",
-      "title": "Not trusted by macOS (as presented by server)",
-      "topic": "trust"
     },
     {
       "id": "appl-fp",

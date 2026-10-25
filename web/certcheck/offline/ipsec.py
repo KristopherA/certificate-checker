@@ -1,8 +1,8 @@
 """IKEv2 IPsec certificate checks for pfSense mobile/site-to-site VPNs (IPsec.swift). Offline: no IKE packets.
 
 Private keys (PEM files or config.xml <prv>) are parsed in memory only to derive the public half for matching.
-Deviation: srvN-chain PASS needs an anchored top certificate (chaincheck.verify); the Mac passes when the top's
-issuer was never supplied. See shared/known-differences.yaml."""
+srvN-chain PASS needs an anchored top certificate (chaincheck.verify): a verified self-signed root, a supplied
+anchor, or one of the config's own CAs (byte-equal or same SPKI), as IPsec.swift since 0.10.1."""
 
 from __future__ import annotations
 
@@ -522,7 +522,9 @@ def evaluate_server(
                             "basicConstraints pathLenConstraint is violated; clients reject the chain. Self-issued intermediates are not counted. Issue the server certificate from a CA within the limit.",
                         )
                     )
-        ok, msg = chaincheck.verify(ch, now, anchors)
+        # The config's own CAs anchor the chain (IPsec.swift verify(_:cas:now:)); any other top must be a verified root.
+        cfg = [ch[-1]] if chaincheck.user_supplied(ch[-1], [e.cert for e in cas]) else []
+        ok, msg = chaincheck.verify(ch, now, [*anchors, *cfg])
         out.append(
             f(
                 p + "chain",

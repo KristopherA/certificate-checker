@@ -4,7 +4,7 @@
 schema: 1
 severities: [pass, info, warning, fail]
 topics: [expiry, hostname, chainOrder, chainIncomplete, trust, keyMismatch, weakKey, weakSignature, eku, caLeaf, noSAN, longValidity, startTLS, connection, csr, general, wireguard, ipsec, radius, remote, appliance, stack, vendor]
-count: 338
+count: 339
 findings:
   - id: "appl-fp"
     severity: "info"
@@ -1314,7 +1314,7 @@ findings:
     severity: "pass"
     topic: "radius"
     kind: "chain"
-    title: "Chain verifies to {chain.last!.displayName}"
+    title: "Chain verifies to {top.displayName}"
     detail: "{chain.map(\\.displayName).joined(separator:} → {)}"
     source: "Core/Radius.swift"
     mac_only: false
@@ -1324,6 +1324,22 @@ findings:
     kind: "chain"
     title: "Issuing CA not supplied"
     detail: "Issuer: {leaf.issuer.text}. Add the CA clients trust to verify the chain."
+    source: "Core/Radius.swift"
+    mac_only: false
+  - id: "rad-chain"
+    severity: "warning"
+    topic: "radius"
+    kind: "chain"
+    title: "Only {top.displayName} was supplied, so its issuer could not be checked"
+    detail: "Clients must already trust {top.issuer.text}; nothing here proves it issued this certificate."
+    source: "Core/Radius.swift"
+    mac_only: false
+  - id: "rad-chain"
+    severity: "warning"
+    topic: "radius"
+    kind: "chain"
+    title: "Signatures verify up to {top.displayName}, but no root was supplied"
+    detail: "{path}. Nothing here proves who issued {top.displayName}; clients must already trust its issuer."
     source: "Core/Radius.swift"
     mac_only: false
   - id: "rad-chain"
@@ -1478,14 +1494,6 @@ findings:
     detail: "Its basicConstraints is not CA:TRUE."
     source: "Core/Radius.swift"
     mac_only: false
-  - id: "rad-order"
-    severity: "warning"
-    topic: "radius"
-    kind: "chain"
-    title: "Server sends its chain out of order"
-    detail: "Send the server certificate first, then each intermediate."
-    source: "Core/Radius.swift"
-    mac_only: false
   - id: "rad-probe-dns"
     severity: "fail"
     topic: "radius"
@@ -1522,8 +1530,8 @@ findings:
     severity: "info"
     topic: "radius"
     kind: "probe"
-    title: "Received {r.chain.count} certificate{r.chain.count == 1 ? \"\" : \"s\"} from the server"
-    detail: "The authentication itself is expected to fail: the probe uses dummy credentials."
+    title: "Captured {r.chain.count} certificate{r.chain.count == 1 ? \"\" : \"s\"} from the server's path"
+    detail: "eapol_test records the path it built, not the exact list the server sent, so extra or out-of-order certificates the server sends are not reported. The authentication itself is expected to fail: the probe uses dummy credentials."
     source: "Core/Radius.swift"
     mac_only: false
   - id: "rad-probe-run"

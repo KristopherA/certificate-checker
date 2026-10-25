@@ -2,6 +2,13 @@
   "case": "rad-top-not-sent",
   "findings": [
     {
+      "id": "rad-chain",
+      "kind": "chain",
+      "severity": "fail",
+      "title": "Chain does not verify",
+      "topic": "radius"
+    },
+    {
       "id": "rad-name",
       "kind": "name",
       "severity": "info",
@@ -13,13 +20,6 @@
       "kind": "chain",
       "severity": "info",
       "title": "Chain stops at Test Rollover CA",
-      "topic": "radius"
-    },
-    {
-      "id": "rad-chain",
-      "kind": "chain",
-      "severity": "pass",
-      "title": "Chain verifies to Test Rollover CA",
       "topic": "radius"
     },
     {

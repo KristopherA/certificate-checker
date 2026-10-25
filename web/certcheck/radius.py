@@ -4,9 +4,8 @@ Offline checks read PEM/DER/PKCS#7 files. The live probe runs eapol_test once (a
 inner credentials, no retries) only to capture the server certificate chain. The shared secret is held in memory
 only: it reaches eapol_test as an argv element (-s), never a shell, file or log, and is redacted from the transcript.
 
-Deviation from the Mac (shared/known-differences.yaml): rad-chain PASS needs the top certificate to be
-anchored (a verifying self-signature). Radius.swift:92-93 passes the top certificate to SecTrust as its own
-anchor, so a chain whose root was never supplied reports "Chain verifies" (a false PASS).
+rad-chain PASS needs the top certificate to be anchored (a verifying self-signature) and no MD5/SHA-1 links,
+as the Mac since 0.10.1 (rad-top-not-sent, rad-bad).
 """
 
 from __future__ import annotations
@@ -314,7 +313,7 @@ def evaluate(
                 out.append(
                     f(f"rad-caexp-{k}", Severity.FAIL, "chain", f"Issuer {c.display_name} expired {fmt(c.not_after)}")
                 )
-        ok, msg = chaincheck.verify(chain, now, anchors)  # strict: the top must be anchored (Mac bug, see module doc)
+        ok, msg = chaincheck.verify(chain, now, anchors)  # strict: the top must be anchored (as ChainCheck.verify)
         if ok:
             out.append(
                 f(
