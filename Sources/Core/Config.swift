@@ -116,3 +116,31 @@ public enum KB {
     /// Only the docs that have a configured link, in order.
     public static func available(_ keys: [String], config: AppConfig = AppConfig.current) -> [String] { keys.filter { url($0, config: config) != nil } }
 }
+
+
+/// Layout floor and clamp for the Add/Edit Target sheet (App uses these; tests lock the floor).
+/// Persisted sizes are content sizes (not window frames), restored with `setContentSize`.
+public enum TargetEditorMetrics {
+    public static let minWidth: Double = 520
+    public static let minHeight: Double = 480
+    public static let defaultWidth: Double = 580
+    public static let defaultHeight: Double = 560
+
+    /// Clamp a remembered content size to the sheet minimum and an upper bound (typically the
+    /// screen's visibleFrame). A corrupted AppStorage value cannot shrink below the floor or
+    /// grow past the screen. Round-tripping a value already inside the range is stable.
+    public static func clampContentSize(
+        width: Double,
+        height: Double,
+        maxWidth: Double,
+        maxHeight: Double,
+        minWidth: Double = minWidth,
+        minHeight: Double = minHeight
+    ) -> (width: Double, height: Double) {
+        let ceilingW = max(maxWidth, minWidth)
+        let ceilingH = max(maxHeight, minHeight)
+        let w = min(max(width, minWidth), ceilingW)
+        let h = min(max(height, minHeight), ceilingH)
+        return (w, h)
+    }
+}

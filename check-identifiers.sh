@@ -9,7 +9,7 @@
 set -uo pipefail
 ROOT="${1:-$(cd "$(dirname "$0")" && pwd)}"; shift $(( $# > 0 ? 1 : 0 ))
 PATTERNS="${CC_IDENTIFIER_PATTERNS:-$HOME/Library/Application Support/CertificateChecker/identifier-patterns.txt}"
-EXCL=(--exclude-dir=.build --exclude-dir=dist --exclude-dir=DerivedData --exclude-dir=xcuserdata --exclude-dir='*.app' --exclude-dir=.git --exclude=.DS_Store)
+EXCL=(--exclude-dir=.build --exclude-dir=dist --exclude-dir=DerivedData --exclude-dir=xcuserdata --exclude-dir='*.app' --exclude-dir=.git --exclude-dir=.venv --exclude-dir=venv --exclude=.DS_Store)
 args=()
 if [ "$PATTERNS" != none ]; then
   [ -f "$PATTERNS" ] || { echo "Identifier check FAILED: patterns file missing: $PATTERNS (set CC_IDENTIFIER_PATTERNS=none to skip organisation patterns)"; exit 1; }

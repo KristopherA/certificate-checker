@@ -271,7 +271,7 @@ struct ContentView: View {
                 Spacer()
                 Label("On demand only", systemImage: "hand.tap").font(.caption)
                 Text("Nothing runs in the background. Private keys are read in memory only and never logged, cached, copied or uploaded. Fix commands are copy-only.").font(.caption).foregroundStyle(.secondary)
-                Text("macOS 14+ · v0.10.1\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
+                Text("macOS 14+ · v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?")\(AppConfig.current.organizationName.isEmpty ? "" : " · " + AppConfig.current.organizationName)").font(.caption2).foregroundStyle(.secondary)
                 Text("Config: \(AppConfig.source == "built-in defaults" ? "built-in defaults" : (AppConfig.source as NSString).abbreviatingWithTildeInPath)\(AppConfig.loadError == nil ? "" : " (error, defaults used)")").font(.caption2).foregroundStyle(.secondary).lineLimit(2).help(AppConfig.loadError ?? AppConfig.source).textSelection(.enabled)
             }.padding(24).frame(width: 230).frame(maxHeight: .infinity).background(accent.opacity(0.055))
             Divider()
@@ -504,22 +504,172 @@ struct TargetEditor: View {
     @EnvironmentObject var m: Checker
     @State var target: Target
     @State private var portText = ""
+    /// Remembered sheet size (points). Resizable; restored on next open.
+    @AppStorage("targetEditorWidth") private var storedWidth = TargetEditorMetrics.defaultWidth
+    @AppStorage("targetEditorHeight") private var storedHeight = TargetEditorMetrics.defaultHeight
+
+    private var connectIPBinding: Binding<String> {
+        Binding(get: { target.connectIP ?? "" }, set: {
+            let t = $0.trimmingCharacters(in: .whitespaces)
+            target.connectIP = t.isEmpty ? nil : t
+        })
+    }
+    private var fingerprintBinding: Binding<String> {
+        Binding(get: { target.fingerprintPin ?? "" }, set: { target.fingerprintPin = $0.isEmpty ? nil : $0 })
+    }
+
     var body: some View {
-        Form {
-            TextField("Name", text: $target.name)
-            TextField("Host or IP", text: $target.host)
-            Picker("Service", selection: $target.service) { ForEach(Service.allCases) { Text($0.rawValue).tag($0) } }
-                .onChange(of: target.service) { _, s in target.port = s.defaultPort; portText = String(s.defaultPort); if !s.acceptsFingerprintPin { target.fingerprintPin = nil } }
-            TextField("Port", text: $portText).onChange(of: portText) { _, v in if let p = Int(v) { target.port = p } }
-            TextField("SNI override (optional)", text: $target.sni)
-            TextField("Expected certificate name (optional)", text: $target.expectedName)
-            TextField("Connect IP (optional, bypasses DNS; SNI stays the host)", text: Binding(get: { target.connectIP ?? "" }, set: { target.connectIP = $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0.trimmingCharacters(in: .whitespaces) }))
-            if target.service.acceptsFingerprintPin { TextField("Fingerprint pin, SHA-256 AA:BB:… (optional)", text: Binding(get: { target.fingerprintPin ?? "" }, set: { target.fingerprintPin = $0.isEmpty ? nil : $0 })) }
-            Picker("Platform (for fix guidance)", selection: $target.platform) { ForEach(Platform.allCases) { Text($0.rawValue).tag($0) } }
-            TextField("Notes", text: $target.notes, axis: .vertical).lineLimit(2...4)
-            Text("Targets are saved to ~/Library/Application Support/CertificateChecker/targets.json (0600). Results are not saved.").font(.caption).foregroundStyle(.secondary)
-            HStack { Spacer(); Button("Cancel") { m.editing = nil }; Button("Save") { m.commit(target) }.keyboardShortcut(.defaultAction) }
-        }.padding(20).frame(width: 480).onAppear { portText = String(target.port) }
+        VStack(spacing: 0) {
+            Form {
+                Section {
+                    TextField("Name", text: $target.name)
+                    TextField("Host or IP", text: $target.host)
+                    Picker("Service", selection: $target.service) {
+                        ForEach(Service.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .onChange(of: target.service) { _, s in
+                        target.port = s.defaultPort
+                        portText = String(s.defaultPort)
+                        if !s.acceptsFingerprintPin { target.fingerprintPin = nil }
+                    }
+                    TextField("Port", text: $portText)
+                        .onChange(of: portText) { _, v in if let p = Int(v) { target.port = p } }
+                }
+                Section {
+                    TextField("SNI override", text: $target.sni)
+                    TextField("Expected certificate name", text: $target.expectedName)
+                    TextField("Connect IP", text: connectIPBinding)
+                    if target.service.acceptsFingerprintPin {
+                        TextField("Fingerprint pin", text: fingerprintBinding)
+                    }
+                    Picker("Platform (for fix guidance)", selection: $target.platform) {
+                        ForEach(Platform.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                } header: {
+                    Text("TLS options")
+                } footer: {
+                    Text("SNI override and expected name are optional. Connect IP bypasses DNS while SNI stays the host. Fingerprint pin is SHA-256 (AA:BB:…).")
+                }
+                Section {
+                    TextField("Notes", text: $target.notes, axis: .vertical)
+                        .lineLimit(3...12)
+                } footer: {
+                    Text("Targets are saved to ~/Library/Application Support/CertificateChecker/targets.json (0600). Results are not saved.")
+                }
+            }
+            .formStyle(.grouped)
+            .padding(.top, 4)
+
+            HStack {
+                Spacer()
+                Button("Cancel") { m.editing = nil }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") { m.commit(target) }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+        }
+        .frame(
+            minWidth: CGFloat(TargetEditorMetrics.minWidth),
+            idealWidth: CGFloat(storedWidth),
+            maxWidth: .infinity,
+            minHeight: CGFloat(TargetEditorMetrics.minHeight),
+            idealHeight: CGFloat(storedHeight),
+            maxHeight: .infinity
+        )
+        .background(ResizableSheetChrome(
+            minSize: NSSize(width: TargetEditorMetrics.minWidth, height: TargetEditorMetrics.minHeight),
+            width: $storedWidth, height: $storedHeight))
+        .onAppear { portText = String(target.port) }
+    }
+}
+
+
+/// Makes the hosting sheet window resizable and persists its *content* size via AppStorage.
+/// Save and restore both use content size (`contentLayoutRect` / `setContentSize`) so the
+/// title-bar chrome cannot accumulate across opens.
+private struct ResizableSheetChrome: NSViewRepresentable {
+    var minSize: NSSize
+    @Binding var width: Double
+    @Binding var height: Double
+
+    func makeCoordinator() -> Coordinator { Coordinator(width: $width, height: $height) }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.attach(to: view, minSize: minSize)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.attach(to: nsView, minSize: minSize)
+    }
+
+    final class Coordinator {
+        var width: Binding<Double>
+        var height: Binding<Double>
+        private var observer: NSObjectProtocol?
+        private weak var window: NSWindow?
+
+        init(width: Binding<Double>, height: Binding<Double>) {
+            self.width = width; self.height = height
+        }
+
+        private static func contentSize(of window: NSWindow) -> NSSize {
+            let r = window.contentLayoutRect
+            return NSSize(width: r.width, height: r.height)
+        }
+
+        private static func clamp(storedW: Double, storedH: Double, minSize: NSSize, screen: NSScreen?) -> NSSize {
+            let maxW = Double(screen?.visibleFrame.width ?? 1920)
+            let maxH = Double(screen?.visibleFrame.height ?? 1080)
+            let c = TargetEditorMetrics.clampContentSize(
+                width: storedW, height: storedH, maxWidth: maxW, maxHeight: maxH,
+                minWidth: Double(minSize.width), minHeight: Double(minSize.height))
+            return NSSize(width: c.width, height: c.height)
+        }
+
+        func attach(to view: NSView, minSize: NSSize) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let window = view.window else { return }
+                if self.window !== window {
+                    if let o = self.observer { NotificationCenter.default.removeObserver(o) }
+                    self.window = window
+                    window.styleMask.insert(.resizable)
+                    window.minSize = minSize
+                    // Restore remembered *content* size once when the sheet window appears.
+                    let target = Self.clamp(
+                        storedW: self.width.wrappedValue, storedH: self.height.wrappedValue,
+                        minSize: minSize, screen: window.screen ?? NSScreen.main)
+                    let current = Self.contentSize(of: window)
+                    if abs(current.width - target.width) > 1 || abs(current.height - target.height) > 1 {
+                        window.setContentSize(target)
+                    }
+                    // Persist the clamped content size so AppStorage stays in sync with what we set.
+                    self.width.wrappedValue = Double(target.width)
+                    self.height.wrappedValue = Double(target.height)
+                    self.observer = NotificationCenter.default.addObserver(
+                        forName: NSWindow.didResizeNotification, object: window, queue: .main
+                    ) { [weak self] note in
+                        guard let self, let win = note.object as? NSWindow else { return }
+                        let size = Self.contentSize(of: win)
+                        let clamped = Self.clamp(
+                            storedW: Double(size.width), storedH: Double(size.height),
+                            minSize: minSize, screen: win.screen ?? NSScreen.main)
+                        self.width.wrappedValue = Double(clamped.width)
+                        self.height.wrappedValue = Double(clamped.height)
+                    }
+                } else {
+                    window.styleMask.insert(.resizable)
+                    window.minSize = minSize
+                }
+            }
+        }
+
+        deinit {
+            if let o = observer { NotificationCenter.default.removeObserver(o) }
+        }
     }
 }
 

@@ -304,6 +304,10 @@ New **Services & devices** section and CLI commands (`munki`, `munki-repo`, `fms
 
 **Untested:** vendor default-certificate detection and behaviour were built from documentation and SYNTHETIC fixtures only (loopback); no probes were made against real Munki, FileMaker, Retrospect, HP or Barracuda products.
 
+## 0.10.2: Add/Edit Target sheet layout
+
+Build 21: the Add/Edit Target sheet is resizable (minimum 520×480, default 580×560) and remembers its *content* size between opens (save and restore both use content size so the window chrome cannot accumulate). Restored sizes are clamped to the sheet minimum and the screen's visible frame. It uses a grouped Form so labels and fields no longer clip; long hints (connect IP, SNI, fingerprint pin) sit in section help text; notes use a taller multi-line field; Cancel is Esc (`.cancelAction`) and Save is Return (`.defaultAction`, stays enabled — `validate()` still rejects bad input). The sidebar footer reads the marketing version from the bundle instead of a hard-coded string. No other sheets existed to audit.
+
 ## 0.10.1: forged-anchor fix and eapol_test chain order
 
 Build 19 (security fix): an MD5 or SHA-1 signature on a chain link is never accepted as proof of
